@@ -161,3 +161,18 @@ def test_no_reescribe_si_ya_existe(tmp_path, monkeypatch):
     assert main() == 1
     assert destino.read_text() == "no tocar"
     assert not (tmp_path / "reporte.csv").exists()
+
+
+WAYBACK = DATA / "raw" / "wayback"
+
+
+def test_capturas_wayback_congeladas():
+    """Respaldo de las páginas de precios de Petropar (Wayback Machine, 2024–2025): solo lectura."""
+    esperado = {}
+    for linea in (WAYBACK / "SHA256SUMS").read_text().splitlines():
+        sha, nombre = linea.split(maxsplit=1)
+        esperado[nombre] = sha
+    presentes = {p.name for p in WAYBACK.iterdir() if p.name != "SHA256SUMS"}
+    assert presentes == set(esperado), "archivos agregados o borrados en data/raw/wayback"
+    for nombre, sha in esperado.items():
+        assert hashlib.sha256((WAYBACK / nombre).read_bytes()).hexdigest() == sha, nombre
