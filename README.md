@@ -1,0 +1,96 @@
+# Petropar tracker
+
+Serie histórica de los precios de surtidor de Petropar (desde 2009-01-02) comparada con el
+petróleo WTI y el diésel ULSD, sombreada por período presidencial. Se actualiza sola: un
+scraper revisa la página de Petropar cada 6 h y, si hay cambio, abre un Pull Request que una
+persona aprueba antes de publicar.
+
+La especificación completa (fuentes, modelo de datos, reglas) está en [SPEC.md](SPEC.md).
+
+## Estructura
+
+| Carpeta | Qué hay |
+|---|---|
+| `data/raw/` | Fuentes originales congeladas (solo lectura; los tests verifican sus hashes) |
+| `data/` | Histórico vigente (`precios_petropar.csv`), productos, presidentes, eventos, petróleo |
+| `data/capturas/` | HTML de Petropar guardado en cada cambio de precio (auditoría) |
+| `etl/` | Scraper, descarga de la EIA, armado de `site/data.json`, avisos por issues |
+| `site/` | Página estática (D3) que lee `site/data.json` |
+| `tests/` | pytest, sin red (fixtures HTML reales y respuestas simuladas de la EIA) |
+| `.github/workflows/` | Automatización (ver abajo) |
+
+## Correr local
+
+Requiere Python 3.12 y `pdftotext` (poppler) para el test del documento oficial.
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+brew install poppler            # o: sudo apt-get install poppler-utils
+
+.venv/bin/python -m pytest -q                                   # tests
+.venv/bin/python -m etl.scrape_petropar --sin-escribir          # scraper contra la página real, sin tocar data/
+EIA_API_KEY=... .venv/bin/python -m etl.fetch_oil               # petróleo (incremental)
+.venv/bin/python -m etl.build_site_data                         # regenera site/data.json
+
+cd site && python3 -m http.server 8000                          # ver el sitio en http://localhost:8000
+```
+
+Sin `--sin-escribir`, el scraper agrega filas a `data/precios_petropar.csv` (nunca reescribe las
+existentes) y guarda la captura en `data/capturas/`. El resumen de cada corrida queda en
+`resumen_scraper.json`.
+
+## Automatización (GitHub Actions)
+
+| Workflow | Cuándo | Qué hace |
+|---|---|---|
+| `scrape.yml` | cada 6 h | Scraper. Si hay cambio corre pytest y abre un PR en `precios/<clave>`. Nunca hace push a main. |
+| `oil.yml` | diario | Datos de la EIA; commit directo a main de `petroleo.csv` y `site/data.json`. |
+| `sitio.yml` | push a main que toca `data/*.csv` | Regenera y commitea `site/data.json` (p. ej. al aprobar un PR de precios). |
+| `frescura.yml` | cada 3 h | Si `scrape.yml` no tuvo una corrida exitosa en 24 h, abre un issue `scraper-roto`. |
+| `tests.yml` | push y PR | pytest. |
+
+Avisos por issues de GitHub (sin correo): `scraper-roto`, `precio-nuevo` (con link al PR) y
+`revisar` (reglas de plausibilidad). Hay un solo issue abierto por etiqueta y la misma alerta no
+se repite; `scraper-roto` se cierra solo cuando el scraper vuelve a andar. El HTML descargado
+queda como artifact de cada corrida.
+
+### Configuración necesaria en GitHub
+
+- Secret **`EIA_API_KEY`**: clave gratuita de https://www.eia.gov/opendata/register.php.
+- *Settings → Actions → General → Workflow permissions*: activar **"Allow GitHub Actions to
+  create and approve pull requests"** (si no, el scraper no puede abrir el PR). También por API:
+  `gh api -X PUT repos/<dueño>/<repo>/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true`
+- Nada más: `GITHUB_TOKEN` alcanza para PRs, issues y commits.
+
+Nota: los PR que abre el scraper con `GITHUB_TOKEN` no disparan `tests.yml`; por eso
+`scrape.yml` corre pytest antes de abrirlos.
+
+## Cómo aprobar un PR de precios
+
+1. Llega el issue `precio-nuevo` con el link al PR (y `revisar` si alguna regla saltó).
+2. En el PR, comparar la tabla de filas nuevas con la página de Petropar
+   (https://www.petropar.gov.py/?page_id=4460) y con la captura en `data/capturas/`.
+3. Revisar las alertas, si las hay. Las más comunes:
+   - `vigencia_vieja` / `vigencia_lejana`: Petropar no actualizó la fecha de vigencia; la fila
+     entra con `fecha_estado = a_confirmar`. Si se conoce la fecha real (por prensa), corregirla
+     después vía `data/correcciones_aprobadas.csv`.
+   - `fecha_ajustada`: dos cambios seguidos antes de que rija el anterior; la fecha se corrió al
+     día siguiente del último registro, `a_confirmar`.
+   - `vigencia_discrepante`: sin cambio de precio, pero la página publica otra vigencia que la del
+     histórico; solo informativo.
+   - `variacion`, `orden`, `rango`, `multiplo_5`, `control_cruzado`: posible error de carga en
+     la página; verificar antes de aprobar.
+4. Si está bien: **Merge**. `sitio.yml` regenera `site/data.json` y el sitio se actualiza.
+   Si está mal: cerrar el PR sin mergear (la misma propuesta no se vuelve a abrir) y corregir a
+   mano si hace falta.
+5. Cerrar los issues `precio-nuevo` / `revisar` cuando estén resueltos.
+
+Reglas que no se negocian (ver CLAUDE.md): nunca inventar ni completar precios (sin fuente va
+`a_confirmar`), no reescribir filas existentes salvo corrección aprobada y registrada, y
+`data/raw/` no se edita.
+
+## Publicación (Vercel)
+
+Sitio estático sin build: en Vercel, importar el repo con *Root Directory* = `site` y sin
+comando de build. Cada push a main (incluidos los commits de `oil.yml` y `sitio.yml`) publica.
