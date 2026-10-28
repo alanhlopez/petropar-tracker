@@ -1,0 +1,9 @@
+fecha,fecha_fin,tipo,etiqueta,mostrar,fuente,fuente_url,nota
+2016-08-06,2016-08-06,promo,Promo de un día: G. 200 menos en la estación Villa Elisa (aniversario),false,IP 04-08-2016,https://www.ip.gov.py/ip/2016/08/04/petropar-vendera-combustible-mas-barato-por-aniversario-de-su-estacion/,
+2016-08-27,2016-08-27,promo,Promo de un día en 5 estaciones,false,Última Hora 26-08-2016,https://ultimahora.com/petropar-baja-precio-combustibles-n1019158.html,
+2016-09-24,2016-09-24,promo,Promo de un día: G. 200 menos en 16 estaciones,false,Oviedopress 22-09-2016,https://oviedopress.com/este-sabado-bajaran-precio-de-combustibles-en-petropar/,
+2017-08-26,2017-08-26,promo,Promo de un día en 30 estaciones (Mbarete a G. 4.500),false,La Nación 24-08-2017,https://www.lanacion.com.py/negocios/2017/08/24/petropar-baja-precios-de-combustibles-este-sabado-en-30-estaciones/,
+2020-03-11,,hito,Inicio pandemia (OMS),true,,,
+2021-12-10,2021-12-31,promo,Rebaja temporal G. 250 por litro,true,ABC 02-01-2022,https://www.abc.com.py/nacionales/2022/01/02/precios-de-combustibles-suben-a-su-nivel-anterior-g-250-por-litro/,No figura en el documento oficial AIP 90150: rebaja temporal, no cambio de precio de lista.
+2023-03-31,2023-04-09,promo,Baja temporal diésel G. 400 (Mbarete 10.190 / Porã 8.500),true,ABC 28-03-2023,https://www.abc.com.py/economia/2023/03/28/petropar-baja-g-400-el-diesel-premium-y-comun-por-semana-santa/,Fin según anuncio; a confirmar. No figura en el documento oficial AIP 90150.
+2023-05-05,,hito,Fin emergencia (OMS),true,,,

@@ -1,0 +1,9 @@
+product_id,nombre_actual,nombres_historicos,tipo,unidad,datos_hasta
+diesel_mbarete,Diésel Mbarete,Tipo I|Gasoil Tipo I,diesel,litro,
+diesel_pora,Diésel Porã,Tipo III|Diésel común|Gasoil Tipo III,diesel,litro,
+nafta_aratiri97,Aratiri 97,Ecoplus 95|Nafta Ecoplus 95,nafta,litro,
+nafta_oikoite93,Oikoite 93,Eco 90 Especial,nafta,litro,
+nafta_kape88,Kape 88,Eco 85|Nafta Econo 85,nafta,litro,
+nafta_ecoflex85,Ecoflex 85,,nafta,litro,2024-12-31
+glp_kg,GLP (kg),,glp,kg,
+glp_litro,GLP (litro),,glp,litro,

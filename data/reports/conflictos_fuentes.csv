@@ -1,0 +1,43 @@
+fecha,producto,valor_prensa,valor_oficial,fuente_prensa,nota
+2016-08-04,diesel_mbarete,5000,5200,IP 04-08-2016 / Ultima Hora 26-08-2016 / Aratiri/Oikoite: UH 26-08-2016,"precios de promoción de un día (ver eventos.csv, promos 2016)"
+2016-08-04,diesel_pora,4090,4290,IP 04-08-2016 / Ultima Hora 26-08-2016 / Aratiri/Oikoite: UH 26-08-2016,"precios de promoción de un día (ver eventos.csv, promos 2016)"
+2016-08-04,nafta_aratiri97,5490,5690,IP 04-08-2016 / Ultima Hora 26-08-2016 / Aratiri/Oikoite: UH 26-08-2016,"precios de promoción de un día (ver eventos.csv, promos 2016)"
+2016-08-04,nafta_oikoite93,4790,4990,IP 04-08-2016 / Ultima Hora 26-08-2016 / Aratiri/Oikoite: UH 26-08-2016,"precios de promoción de un día (ver eventos.csv, promos 2016)"
+2016-08-04,nafta_kape88,3790,3990,IP 04-08-2016 / Ultima Hora 26-08-2016 / Aratiri/Oikoite: UH 26-08-2016,"precios de promoción de un día (ver eventos.csv, promos 2016)"
+2019-05-13,diesel_mbarete,6100,5800,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2019-05-16
+2019-05-13,diesel_pora,5180,4880,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2019-05-16
+2019-05-13,nafta_aratiri97,6690,6390,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2019-05-16
+2019-05-13,nafta_oikoite93,5890,5590,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2019-05-16
+2019-05-13,nafta_kape88,4950,4650,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2019-05-16
+2021-02-28,diesel_mbarete,5850,5450,Ultima Hora 28-02-2021 / reemplaza 22/03/2021 de planilla,solo desfase de fecha: el oficial tiene ese precio desde 2021-03-01
+2021-02-28,nafta_aratiri97,6440,6040,Ultima Hora 28-02-2021 / reemplaza 22/03/2021 de planilla,solo desfase de fecha: el oficial tiene ese precio desde 2021-03-01
+2021-02-28,nafta_oikoite93,5560,5240,Ultima Hora 28-02-2021 / reemplaza 22/03/2021 de planilla,solo desfase de fecha: el oficial tiene ese precio desde 2021-03-01
+2021-02-28,nafta_kape88,4700,4300,Ultima Hora 28-02-2021 / reemplaza 22/03/2021 de planilla,solo desfase de fecha: el oficial tiene ese precio desde 2021-03-01
+2021-07-14,diesel_mbarete,6650,6250,Ultima Hora 14-07-2021,solo desfase de fecha: el oficial tiene ese precio desde 2021-07-15
+2021-07-14,diesel_pora,5730,5330,Ultima Hora 14-07-2021,solo desfase de fecha: el oficial tiene ese precio desde 2021-07-15
+2021-07-14,nafta_aratiri97,7220,6820,Ultima Hora 14-07-2021,solo desfase de fecha: el oficial tiene ese precio desde 2021-07-15
+2021-07-14,nafta_oikoite93,6560,5910,Ultima Hora 14-07-2021,precio distinto
+2021-07-14,nafta_kape88,5480,5080,Ultima Hora 14-07-2021,solo desfase de fecha: el oficial tiene ese precio desde 2021-07-15
+2021-10-16,diesel_mbarete,7220,7250,ABC 16-10-2021,precio distinto
+2021-10-16,nafta_oikoite93,6870,6810,ABC 16-10-2021,precio distinto
+2022-03-18,diesel_pora,6050,6550,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2022-03-21
+2022-03-18,nafta_oikoite93,6910,7210,planilla Alan,solo desfase de fecha: el oficial tiene ese precio desde 2022-03-21
+2022-03-22,nafta_kape88,6890,6860,planilla Alan,precio distinto
+2022-07-28,diesel_pora,8300,8500,ABC 28-07-2022 / solo montos de baja,precio distinto
+2022-07-28,nafta_aratiri97,9690,9840,ABC 28-07-2022 / solo montos de baja,precio distinto
+2022-07-28,nafta_oikoite93,8560,8910,ABC 28-07-2022 / solo montos de baja,precio distinto
+2022-07-28,nafta_kape88,8000,8150,ABC 28-07-2022 / solo montos de baja,precio distinto
+2022-11-07,diesel_pora,8300,8500,ABC 07-11-2022 / precios vigentes,precio distinto
+2023-03-31,diesel_mbarete,10190,10590,ABC 29-03-2023 / baja temporal,baja temporal que no figura en el documento oficial: ver eventos.csv (promo)
+2023-03-31,diesel_pora,8500,8900,ABC 29-03-2023 / baja temporal,baja temporal que no figura en el documento oficial: ver eventos.csv (promo)
+2023-05-20,diesel_mbarete,9850,9960,planilla Alan,precio distinto
+2023-05-20,diesel_pora,8200,8400,planilla Alan,precio distinto
+2023-05-20,nafta_aratiri97,8850,9190,planilla Alan,precio distinto
+2023-05-20,nafta_oikoite93,7400,8260,planilla Alan,precio distinto
+2023-05-20,nafta_kape88,7100,7500,planilla Alan,precio distinto
+2023-08-23,diesel_mbarete,9250,9050,ABC 23-08-2023 / baja G. 600 a todo,precio distinto
+2023-08-23,diesel_pora,7600,7500,ABC 23-08-2023 / baja G. 600 a todo,precio distinto
+2023-08-23,nafta_aratiri97,8250,8150,ABC 23-08-2023 / baja G. 600 a todo,precio distinto
+2023-08-23,nafta_kape88,6500,6300,ABC 23-08-2023 / baja G. 600 a todo,precio distinto
+2023-11-20,nafta_aratiri97,8000,7900,ABC 20-11-2023 / naftas -250,precio distinto
+2023-11-20,nafta_kape88,6250,6050,ABC 20-11-2023 / naftas -250,precio distinto

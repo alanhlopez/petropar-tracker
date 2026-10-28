@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+.vercel/
+
+# Claves y secrets: nunca al repo
+.env
+.env.*
+*.key
+*.pem
+*secret*
+*credentials*
+.claude/settings.local.json
