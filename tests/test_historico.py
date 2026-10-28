@@ -119,10 +119,11 @@ def test_sin_extrapolar_hacia_atras(precios):
     assert min(primeras.values()) == "2009-01-02"
 
 
-def test_nada_despues_de_datos_hasta(productos, precios):
+def test_nada_despues_de_datos_hasta_salvo_scraper(productos, precios):
+    """datos_hasta marca el inicio de un hueco: después solo puede haber filas capturadas."""
     for p in precios:
         hasta = productos[p["product_id"]]["datos_hasta"]
-        assert not hasta or p["fecha_vigencia"] <= hasta, p
+        assert not hasta or p["fecha_vigencia"] <= hasta or p["captured_at"], p
 
 
 def test_correccion_aprobada_2026_01_28(precios):

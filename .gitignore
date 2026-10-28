@@ -4,6 +4,8 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .vercel/
+resumen_scraper.json
+artefactos_scraper/
 
 # Claves y secrets: nunca al repo
 .env
