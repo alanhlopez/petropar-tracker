@@ -1,0 +1,50 @@
+fecha,diesel_mbarete,diesel_pora,nafta_aratiri97,nafta_oikoite93,nafta_kape88,estado,fuente
+2016-08-04,5000,4090,5490,4790,3790,verificado (Aratiri/Oikoite: UH 26-08-2016),IP 04-08-2016 / Ultima Hora 26-08-2016
+2017-05-09,5100,4190,5590,4890,3890,verificado,La Nacion 09-05-2017
+2018-01-22,5400,4630,5890,5190,4250,planilla,planilla Alan
+2018-06-05,5700,4930,6190,5490,4450,planilla,planilla Alan
+2018-10-01,6000,5230,6490,5790,4750,planilla,planilla Alan
+2018-12-01,6000,5080,6490,5790,4750,planilla,planilla Alan
+2018-12-29,5800,4880,6390,5590,4650,planilla,planilla Alan
+2019-05-13,6100,5180,6690,5890,4950,planilla,planilla Alan
+2020-03-12,5700,4780,6290,5490,4550,planilla,planilla Alan
+2020-05-20,5450,4530,6040,5240,4300,planilla,planilla Alan
+2021-02-28,5850,4530,6440,5560,4700,verificado,Ultima Hora 28-02-2021 (reemplaza 22/03/2021 de planilla)
+2021-05-29,6250,5330,6820,5910,5080,verificado,La Nacion/ABC 28-05-2021 (rige 29/05)
+2021-07-14,6650,5730,7220,6560,5480,verificado,Ultima Hora 14-07-2021
+2021-10-16,7220,6330,7820,6870,6080,verificado,ABC 16-10-2021
+2022-02-12,7850,6580,8420,7360,6680,planilla,planilla Alan
+2022-03-03,8320,7050,8840,7710,7100,planilla,planilla Alan
+2022-03-18,,6050,,6910,,planilla,planilla Alan
+2022-03-22,,,,,6890,planilla,planilla Alan
+2022-04-13,9670,8050,9590,8310,7700,verificado,ABC 12-04-2022 (rige 13/04)
+2022-06-20,9990,8800,9990,9060,8300,planilla,planilla Alan
+2022-07-28,,8300,9690,8560,8000,derivado,ABC 28-07-2022 (solo montos de baja)
+2022-10-10,,,9340,8410,7650,planilla,planilla Alan
+2022-10-18,,,9190,8260,7500,planilla,planilla Alan
+2022-11-07,10590,8300,9190,8260,7500,verificado,ABC 07-11-2022 (precios vigentes)
+2023-03-31,10190,8500,,,,verificado,ABC 29-03-2023 (baja temporal)
+2023-04-10,10590,8900,,,,derivado,fin de baja temporal (ABC 29-03-2023 / UH 18-05-2023)
+2023-05-20,9850,8200,8850,7400,7100,planilla,planilla Alan
+2023-08-23,9250,7600,8250,6800,6500,derivado,ABC 23-08-2023 (baja G. 600 a todo)
+2023-11-20,,,8000,6550,6250,derivado,ABC 20-11-2023 (naftas -250)
+2024-03-13,9540,7740,7990,6640,6140,verificado,La Nacion 12-03-2024
+2024-06-26,9240,7440,,,,verificado,Ultima Hora 27-06-2024
+2024-07-20,,,8280,6930,6430,planilla - fecha a confirmar,planilla Alan
+2024-10-04,8990,7190,,,,verificado,La Nacion 04-10-2024
+2024-11-08,,,7980,6630,6130,verificado,ABC 08-11-2024 + lista oficial Petropar
+2025-02-01,9290,7490,8280,6930,6430,verificado,La Nacion 03-02-2025
+2025-03-24,8990,7190,7980,6630,6130,verificado,La Tribuna 24-03-2025 + lista oficial Petropar
+2025-05-12,8720,6920,7710,6360,5860,verificado,IP 12-05-2025
+2025-07-10,9100,7300,8090,6740,6240,verificado,La Nacion 10-07-2025 / 11-08-2025
+2025-08-11,8850,7050,7840,6490,5990,verificado,La Nacion 11-08-2025
+2025-09-19,8600,6800,7590,6240,5740,verificado,Prensa Mercosur 20-09-2025
+2025-12-01,8300,6500,7290,5940,5440,verificado,La Nacion 01-12-2025 / Infonegocios
+2026-02-01,8050,6250,7040,5690,5190,derivado - fecha a confirmar,ABC 28-10-2026 (base 2026)
+2026-03-23,8500,6700,7490,6140,5640,verificado,La Nacion 24-03-2026 (Aratiri 7940 en nota = typo)
+2026-04-10,9250,7450,8240,6890,6390,verificado,La Nacion 10-04-2026
+2026-05-04,10000,8200,8540,7190,6690,verificado,La Nacion 04-05-2026
+2026-07-01,,7990,,,,verificado,IP 02-07-2026
+2026-08-17,10300,8290,8840,7490,6990,verificado,La Nacion / Hoy 17-08-2026
+2026-09-24,10795,8785,8990,7490,6990,verificado,Extra / 1000 Noticias (encadenado)
+2026-10-28,11395,9285,8990,7490,6990,verificado,1000 Noticias / El Nacional 28-10-2026
