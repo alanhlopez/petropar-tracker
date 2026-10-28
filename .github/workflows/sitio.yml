@@ -1,0 +1,50 @@
+# Regenera site/data.json cuando cambian los datos en main (ej. al aprobar un PR de precios).
+# Los PR del scraper no traen data.json para no chocar con los commits diarios de oil.yml.
+name: sitio
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/*.csv"
+      - "etl/build_site_data.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: commit-main
+  cancel-in-progress: false
+
+jobs:
+  data-json:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m pytest -q
+
+      - name: Regenerar y commitear data.json
+        run: |
+          python -m etl.build_site_data
+          # "generado" cambia en cada corrida: commitear solo si cambió algo más
+          if ! cmp -s <(git show HEAD:site/data.json | jq -cS 'del(.generado)') \
+                      <(jq -cS 'del(.generado)' site/data.json); then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add site/data.json
+            git commit -m "Sitio: data.json regenerado"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "data.json sin cambios de datos."
+          fi

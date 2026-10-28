@@ -1,0 +1,28 @@
+# Frescura: si scrape.yml no tuvo una corrida exitosa en 24 h, issue `scraper-roto`.
+name: frescura
+
+on:
+  schedule:
+    - cron: "37 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  issues: write
+
+jobs:
+  frescura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Última corrida exitosa del scraper
+        run: python -m etl.avisos frescura --workflow scrape.yml --run-url "$RUN_URL"

@@ -1,0 +1,109 @@
+# Scraper de Petropar cada 6 h. Si hay cambio de precio abre un PR (nunca push a main).
+# Avisos por issues: scraper-roto, precio-nuevo, revisar (ver etl/avisos.py).
+name: scrape
+
+on:
+  schedule:
+    - cron: "7 */6 * * *" # 00:07, 06:07, 12:07 y 18:07 en Asunción (UTC-3)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Scraper
+        id: scraper
+        continue-on-error: true
+        run: python -m etl.scrape_petropar --resumen resumen_scraper.json --artefactos artefactos_scraper
+
+      - name: Leer resumen
+        id: resumen
+        if: always()
+        run: |
+          if [ -f resumen_scraper.json ]; then
+            {
+              echo "cambio=$(jq -r '.cambio' resumen_scraper.json)"
+              echo "revisar=$(jq -r '.revisar' resumen_scraper.json)"
+              echo "clave=$(jq -r '.clave_cambio' resumen_scraper.json)"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "cambio=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Adjuntar HTML capturado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-${{ github.run_id }}
+          path: |
+            artefactos_scraper/
+            resumen_scraper.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Tests antes de abrir el PR
+        if: steps.scraper.outcome == 'success' && steps.resumen.outputs.cambio == 'true'
+        run: python -m pytest -q
+
+      - name: Abrir PR de precios
+        id: pr
+        if: steps.scraper.outcome == 'success' && steps.resumen.outputs.cambio == 'true'
+        env:
+          CLAVE: ${{ steps.resumen.outputs.clave }}
+          REVISAR: ${{ steps.resumen.outputs.revisar }}
+        run: |
+          rama="precios/${CLAVE}"
+          # misma clave = mismo cambio ya propuesto (PR abierto o rechazado): no duplicar
+          if git ls-remote --exit-code --heads origin "$rama" > /dev/null; then
+            echo "La rama $rama ya existe: no se abre otro PR."
+            echo "url=$(gh pr list --head "$rama" --state all --json url --jq '.[0].url')" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -m etl.avisos pr --resumen resumen_scraper.json --run-url "$RUN_URL" > cuerpo_pr.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$rama"
+          git add data/precios_petropar.csv data/capturas/
+          git commit -m "Precios Petropar: captura $(jq -r '.captured_at' resumen_scraper.json)"
+          git push origin "$rama"
+          python -m etl.avisos etiquetas
+          etiquetas="precio-nuevo"
+          if [ "$REVISAR" = "true" ]; then etiquetas="precio-nuevo,revisar"; fi
+          url=$(gh pr create --base main --head "$rama" --label "$etiquetas" \
+            --title "Precios Petropar: $(jq -r '[.filas_nuevas[].product_id] | join(", ")' resumen_scraper.json)" \
+            --body-file cuerpo_pr.md)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Avisos (issues)
+        if: always()
+        env:
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: python -m etl.avisos scraper --resumen resumen_scraper.json --run-url "$RUN_URL" --pr-url "$PR_URL"
+
+      - name: Fallar si el scraper falló
+        if: steps.scraper.outcome == 'failure'
+        run: |
+          echo "::error::El scraper falló: ver resumen_scraper.json en el artifact"
+          exit 1
