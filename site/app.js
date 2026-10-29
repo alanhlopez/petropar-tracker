@@ -1022,7 +1022,7 @@
       msg += 'Cada precio convertido con el tipo de cambio de referencia del BCP en su fecha de vigencia.'
         + (state.oil !== 'none' ? ' El petróleo va en el mismo eje, en US$ por litro.' : '');
     } else if (state.vista === 'real') {
-      msg += 'Guaraníes constantes de ' + mesTexto(IPC.base) + ' (IPC del BCP).'
+      msg += 'Guaraníes constantes de ' + mesTexto(IPC.base) + ' (IPC del BCP); los meses posteriores van sin deflactar hasta que se publique su IPC.'
         + (state.oil !== 'none' ? ' Petróleo en el eje derecho, en US$ por galón, con escala independiente.' : '');
     } else if (state.oil !== 'none' && seriesOil(state.oil)) {
       msg += 'Eje derecho en US$ por galón, con escala independiente: no compares alturas entre combustibles y petróleo.';
