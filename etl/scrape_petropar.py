@@ -118,9 +118,9 @@ def normalizar(texto: str) -> str:
 def identificar(nombre: str, unidad: str = "") -> str:
     n = normalizar(f"{nombre} {unidad}")
     if re.search(r"\bnande gas\b|\bglp\b", n):
-        if re.search(r"\b(kg|kilogramo)\b", n):
+        if re.search(r"\b(kgs?|kilos?|kilogramos?)\b", n):
             return "glp_kg"
-        if re.search(r"\b(l|litro)\b", n):
+        if re.search(r"\b(l|lts?|litros?)\b", n):
             return "glp_litro"
         raise ErrorEstructura(f"GLP sin unidad reconocible: {nombre!r}")
     encontrados = {pid for clave, pid in CLAVES if re.search(rf"\b{clave}\b", n)}
@@ -130,8 +130,8 @@ def identificar(nombre: str, unidad: str = "") -> str:
 
 
 def parsear_precio(texto: str) -> tuple[int, str]:
-    """'G. 9.285' -> (9285, ''); 'G. 7.374/KG' -> (7374, 'kg')."""
-    m = re.fullmatch(r"g\.?\s*(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:/\s*(\w+))?", normalizar(texto))
+    """'G. 9.285' -> (9285, ''); 'G. 7.374/KG' -> (7374, 'kg'). También 'Gs.' y '₲'."""
+    m = re.fullmatch(r"(?:gs?\.?|₲)\s*(\d{1,3}(?:\.\d{3})+|\d+)\s*(?:/\s*(\w+))?", normalizar(texto))
     if not m:
         raise ErrorEstructura(f"Precio que no se puede convertir: {texto!r}")
     return int(m[1].replace(".", "")), (m[2] or "")
@@ -232,6 +232,12 @@ def inicio_precio_vigente(historia: list[dict]) -> dict[str, dict]:
     return inicios
 
 
+def precio_en(historia: list[dict], pid: str, dia: date) -> dict | None:
+    """Fila del histórico vigente para el producto en ese día (la última con fecha_vigencia <= dia)."""
+    filas = [f for f in historia if f["product_id"] == pid and f["fecha_vigencia"] <= dia.isoformat()]
+    return max(filas, key=lambda f: f["fecha_vigencia"], default=None)
+
+
 def detectar_cambios(vigentes: dict[str, Vigente], historia: list[dict],
                      productos: dict[str, dict], ahora: datetime) -> tuple[list[dict], list[dict]]:
     """Devuelve (filas nuevas, alertas por producto)."""
@@ -272,6 +278,13 @@ def detectar_cambios(vigentes: dict[str, Vigente], historia: list[dict],
                            f"registro ({previo['fecha_vigencia']}); se usa {respaldo.isoformat()}")
                 alertas.append(alerta("vigencia_vieja", pid, detalle))
                 notas.append(detalle)
+                # el histórico ya dice qué precio regía en la vigencia publicada: si no coincide, avisar
+                regia = precio_en(historia, pid, v.vigencia)
+                if regia and int(regia["precio_gs"]) != v.precio:
+                    alertas.append(alerta("conflicto_historico", pid,
+                                          f"la página dice {v.precio} desde {v.vigencia.isoformat()}, pero el "
+                                          f"histórico tiene {regia['precio_gs']} ese día (desde "
+                                          f"{regia['fecha_vigencia']}, {regia['estado']}/{regia['fecha_estado']})"))
             if fecha <= ultima:
                 # ej.: ya hay una fila a_confirmar de mañana y hubo otro cambio el mismo día
                 fecha, fecha_estado = ultima + timedelta(days=1), "a_confirmar"
@@ -315,11 +328,20 @@ def descargar(url: str, intentos: int = 3) -> bytes:
     raise ErrorRed(url, f"{intentos} intentos, último error {detalle}")
 
 
+def con_url(url: str, parsear, html: str):
+    """Corre el parser y, si la estructura falla, deja anotada la página para el resumen y el issue."""
+    try:
+        return parsear(html)
+    except ErrorEstructura as e:
+        e.url = getattr(e, "url", None) or url
+        raise
+
+
 def ejecutar(crudo_vigencia: bytes, crudo_index: bytes, ahora: datetime,
              precios: Path | None = None) -> dict:
     """Corre todas las reglas sobre HTML ya descargado. No escribe nada: devuelve el resumen."""
-    vigentes = parsear_vigencia(decodificar(crudo_vigencia))
-    control = parsear_index(decodificar(crudo_index))
+    vigentes = con_url(URL_VIGENCIA, parsear_vigencia, decodificar(crudo_vigencia))
+    control = con_url(URL_INDEX, parsear_index, decodificar(crudo_index))
     verificar_estructura(vigentes, control)
 
     productos = {p["product_id"]: p for p in leer_csv(PRODUCTOS)}

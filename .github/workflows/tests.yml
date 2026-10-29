@@ -1,5 +1,6 @@
-# pytest en cada push y PR. Ojo: los PR abiertos por el scraper con GITHUB_TOKEN no disparan
-# este workflow; por eso scrape.yml corre pytest antes de abrir el PR.
+# pytest en cada push y PR. Ojo: en los PR que abre el scraper con GITHUB_TOKEN este workflow no
+# llega a correr (GitHub deja una corrida en rojo sin jobs, "workflow file issue"); ese rojo no
+# indica tests fallidos. La garantía es que scrape.yml corre pytest antes de abrir el PR.
 name: tests
 
 on:

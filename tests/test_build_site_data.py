@@ -118,3 +118,11 @@ def test_presidente_en_curso_sin_fin(data):
     presidentes = bs.construir(data, AHORA)["presidentes"]
     assert presidentes[0]["nombre"] == "Fernando Lugo"
     assert presidentes[-1]["fin"] is None
+
+
+def test_ultimo_dato_no_adelanta_fechas_futuras(data):
+    antes = bs.construir(data, AHORA)["ultimo_dato"]["petropar"]
+    agregar_precio(data, "2099-01-01,diesel_pora,9300,litro,venta_publico,verificado,a_confirmar,x,,,2098-12-31T15:00:00+00:00")
+    datos = bs.construir(data, AHORA)
+    assert datos["ultimo_dato"]["petropar"] == antes
+    assert datos["precios"]["diesel_pora"][-1]["fecha"] == "2099-01-01"  # la fila igual se publica

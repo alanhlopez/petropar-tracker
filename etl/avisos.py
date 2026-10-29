@@ -80,17 +80,23 @@ def cuerpo_pr(resumen: dict, run_url: str) -> str:
     return "\n".join(partes) + "\n"
 
 
-def avisos_scraper(resumen: dict, run_url: str, pr_url: str | None) -> list[Aviso]:
+def avisos_scraper(resumen: dict, run_url: str, pr_url: str | None, pr_pendiente: bool = False) -> list[Aviso]:
     if resumen["estado"] == "error":
         tipo = resumen.get("tipo_error", "interno")
-        cuerpo = (f"El scraper falló (`{tipo}`).\n\n```\n{resumen.get('error', '')}\n```\n\n"
+        # ~~~~ en vez de ``` y truncado: el error puede traer texto de la página
+        error = str(resumen.get("error", ""))[:2000].replace("~~~~", "~ ~ ~ ~")
+        cuerpo = (f"El scraper falló (`{tipo}`).\n\n~~~~\n{error}\n~~~~\n\n"
                   f"URL: {resumen.get('url') or '—'}\n\n"
                   f"[Corrida con el HTML capturado como artifact]({run_url})")
         return [Aviso("scraper-roto", "Scraper roto", cuerpo, f"error:{tipo}:{resumen.get('url')}")]
 
     avisos = []
     if resumen["cambio"]:
-        pr = f"PR: {pr_url}" if pr_url else "No se pudo abrir el PR: ver la corrida."
+        if pr_pendiente:
+            pr = (f"Hay un PR de precios sin resolver ({pr_url}): este cambio se propone en un PR nuevo "
+                  "cuando ese se mergee o se cierre.")
+        else:
+            pr = f"PR: {pr_url}" if pr_url else "No se pudo abrir el PR: ver la corrida."
         cuerpo = f"Petropar cambió precios.\n\n{tabla_filas(resumen['filas_nuevas'])}\n\n{pr}\n\n[Corrida]({run_url})"
         avisos.append(Aviso("precio-nuevo", "Precio nuevo de Petropar", cuerpo,
                             f"cambio:{resumen['clave_cambio']}"))
@@ -150,6 +156,11 @@ def cerrar(etiqueta: str, comentario: str, gh=gh) -> bool:
     return True
 
 
+def prs_de_precios_abiertos(gh=gh) -> bool:
+    return bool(json.loads(gh("pr", "list", "--label", "precio-nuevo", "--state", "open",
+                              "--json", "number", "--limit", "1")))
+
+
 def ultima_corrida_exitosa(workflow: str, gh=gh) -> datetime | None:
     corridas = json.loads(gh("run", "list", "--workflow", workflow, "--status", "success",
                              "--limit", "1", "--json", "createdAt"))
@@ -167,6 +178,8 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
     s.add_argument("--resumen", type=Path, default=Path("resumen_scraper.json"))
     s.add_argument("--run-url", required=True)
     s.add_argument("--pr-url", default="")
+    s.add_argument("--pr-pendiente", action="store_true",
+                   help="el cambio no abrió PR porque hay otro de precios sin resolver")
     f = sub.add_parser("frescura")
     f.add_argument("--workflow", default="scrape.yml")
     f.add_argument("--run-url", required=True)
@@ -185,9 +198,12 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
         return 0
     if args.comando == "scraper":
         resumen = leer_resumen(args.resumen)
-        avisos = avisos_scraper(resumen, args.run_url, args.pr_url or None)
+        avisos = avisos_scraper(resumen, args.run_url, args.pr_url or None, args.pr_pendiente)
         if resumen["estado"] == "ok" and cerrar("scraper-roto", f"El scraper volvió a andar: {args.run_url}", gh):
             print("scraper-roto: cerrado")
+        if (resumen["estado"] == "ok" and not resumen["cambio"] and not prs_de_precios_abiertos(gh)
+                and cerrar("precio-nuevo", f"Sin PRs de precios pendientes: {args.run_url}", gh)):
+            print("precio-nuevo: cerrado")
     else:
         ultima = ultima_corrida_exitosa(args.workflow, gh)
         ahora = datetime.now(timezone.utc)

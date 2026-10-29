@@ -56,7 +56,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
    - `--sin-escribir` corre todas las reglas y escribe el resumen, sin tocar `data/`.
    - **Validación en tres niveles:**
      - **(a) Estructura — falla dura** (exit 1, resumen con `estado: error`): una página no responde (3 intentos), no está la tabla o su encabezado cambió, falta alguno de los 8 productos esperados, aparece un producto desconocido o repetido, o un precio o fecha no se puede convertir.
-     - **(b) Plausibilidad — no bloquea; el PR va con etiqueta `revisar`:** precio entre 2.000 y 30.000; múltiplo de 5 (solo diésel y naftas: el GLP por kg es 7.374); Mbarete > Porã y Aratiri > Oikoite > Kape; variación contra el precio anterior menor a ±25 %; precio igual en las dos páginas (control cruzado); vigencia publicada posterior al último registro (`vigencia_vieja`); sin cambio de precio, la vigencia publicada coincide con la fecha en que empezó ese precio en el histórico, si esa fecha está confirmada (`vigencia_discrepante`; caso real: el 28/10/2026 Petropar seguía publicando 24/09 para los diésel ya subidos el 28/10).
+     - **(b) Plausibilidad — no bloquea; el PR va con etiqueta `revisar`:** precio entre 2.000 y 30.000; múltiplo de 5 (solo diésel y naftas: el GLP por kg es 7.374); Mbarete > Porã y Aratiri > Oikoite > Kape; variación contra el precio anterior menor a ±25 %; precio igual en las dos páginas (control cruzado); vigencia publicada posterior al último registro (`vigencia_vieja`); si no lo es y el histórico tiene otro precio vigente en esa fecha, `conflicto_historico` (caso real: Ecoflex 7.330 "desde 13/08/2024" contra 7.730 del AIP 90150); sin cambio de precio, la vigencia publicada coincide con la fecha en que empezó ese precio en el histórico, si esa fecha está confirmada (`vigencia_discrepante`; caso real: el 28/10/2026 Petropar seguía publicando 24/09 para los diésel ya subidos el 28/10).
      - **(c) Frescura:** si no hubo una corrida exitosa del scraper en 24 h, aviso (lo controla el workflow, no el script).
 2. `etl/fetch_oil.py`: baja WTI y ULSD de la EIA (API key en secret `EIA_API_KEY`), incremental.
    - Endpoint `/v2/petroleum/pri/spt/data/`, `frequency=daily`, `data[0]=value`, filtro por `facets[series][]`.
@@ -69,7 +69,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 4. Tests (pytest) con fixtures HTML guardados (capturas reales de las dos páginas y variantes): precios normales, encoding roto, página vacía, estructura distinta, y un test por cada regla de estructura y de plausibilidad. EIA con respuestas simuladas (sin red).
 
 ## Automatización (GitHub Actions)
-- `scrape.yml`: cron cada 6 h → scraper → PR si hay cambio (nunca push directo a main).
+- `scrape.yml`: cron cada 6 h → scraper → PR si hay cambio (nunca push directo a main). Un solo PR de precios abierto a la vez: si ya hay uno, el cambio nuevo se avisa en el issue y se propone cuando ese se resuelva; un PR rechazado no se vuelve a abrir.
 - `oil.yml`: cron diario → commit de datos de petróleo (sin revisión, es dato de API oficial).
 - Frescura: chequeo programado de la última corrida exitosa de `scrape.yml`; si pasaron más de 24 h, aviso.
 - **Notificaciones con issues de GitHub (sin SMTP):**

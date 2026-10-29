@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      GH_TOKEN: ${{ github.token }}
+      # GH_TOKEN solo en los pasos que usan gh, no en el que procesa HTML externo
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
@@ -73,14 +73,29 @@ jobs:
         id: pr
         if: steps.scraper.outcome == 'success' && steps.resumen.outputs.cambio == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           CLAVE: ${{ steps.resumen.outputs.clave }}
           REVISAR: ${{ steps.resumen.outputs.revisar }}
         run: |
           rama="precios/${CLAVE}"
-          # misma clave = mismo cambio ya propuesto (PR abierto o rechazado): no duplicar
-          if git ls-remote --exit-code --heads origin "$rama" > /dev/null; then
-            echo "La rama $rama ya existe: no se abre otro PR."
-            echo "url=$(gh pr list --head "$rama" --state all --json url --jq '.[0].url')" >> "$GITHUB_OUTPUT"
+          # se decide por el PR, no por la rama (al mergear o cerrar la rama se puede borrar)
+          previo=$(gh pr list --head "$rama" --state all --json state,url --jq '.[0] // empty')
+          case "$(jq -r '.state // empty' <<< "$previo")" in
+            OPEN|CLOSED)
+              # mismo cambio ya propuesto (abierto o rechazado): no duplicar
+              echo "Ya hay un PR para $rama: no se abre otro."
+              echo "url=$(jq -r '.url' <<< "$previo")" >> "$GITHUB_OUTPUT"
+              exit 0 ;;
+            MERGED)
+              # la misma combinación de precios volvió después de mergearse: rama nueva
+              rama="precios/${CLAVE}-${GITHUB_RUN_ID}" ;;
+          esac
+          # un solo PR de precios a la vez: el scraper compara contra main, así que un segundo PR
+          # repetiría filas del primero y chocaría al final del CSV. Se propone al resolver el abierto.
+          abierto=$(gh pr list --label precio-nuevo --state open --json url --jq '.[0].url // empty')
+          if [ -n "$abierto" ]; then
+            echo "Hay un PR de precios sin resolver ($abierto): este cambio se propone después."
+            { echo "url=$abierto"; echo "pendiente=true"; } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           python -m etl.avisos pr --resumen resumen_scraper.json --run-url "$RUN_URL" > cuerpo_pr.md
@@ -89,7 +104,7 @@ jobs:
           git switch -c "$rama"
           git add data/precios_petropar.csv data/capturas/
           git commit -m "Precios Petropar: captura $(jq -r '.captured_at' resumen_scraper.json)"
-          git push origin "$rama"
+          git push --force origin "$rama" # rama del bot sin PR (p. ej. una corrida que cortó antes de abrirlo)
           python -m etl.avisos etiquetas
           etiquetas="precio-nuevo"
           if [ "$REVISAR" = "true" ]; then etiquetas="precio-nuevo,revisar"; fi
@@ -101,8 +116,12 @@ jobs:
       - name: Avisos (issues)
         if: always()
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ steps.pr.outputs.url }}
-        run: python -m etl.avisos scraper --resumen resumen_scraper.json --run-url "$RUN_URL" --pr-url "$PR_URL"
+          PR_PENDIENTE: ${{ steps.pr.outputs.pendiente }}
+        run: |
+          python -m etl.avisos scraper --resumen resumen_scraper.json --run-url "$RUN_URL" --pr-url "$PR_URL" \
+            ${PR_PENDIENTE:+--pr-pendiente}
 
       - name: Fallar si el scraper falló
         if: steps.scraper.outcome == 'failure'

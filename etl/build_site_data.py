@@ -11,8 +11,11 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from etl.io_csv import DATA, RAIZ, leer_csv
+
+ASUNCION = ZoneInfo("America/Asuncion")
 
 SALIDA = RAIZ / "site" / "data.json"
 
@@ -99,10 +102,13 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
     petroleo = leer_csv(data / "petroleo.csv") if (data / "petroleo.csv").exists() else []
     ids = {p["product_id"] for p in productos}
     series_oil = petroleo_json(petroleo)
+    ahora = ahora or datetime.now(timezone.utc)
+    hoy = ahora.astimezone(ASUNCION).date().isoformat()
     return {
-        "generado": (ahora or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
+        "generado": ahora.isoformat(timespec="seconds"),
         "ultimo_dato": {
-            "petropar": max((f["fecha_vigencia"] for f in precios), default=None),
+            # una fila "rige mañana" (vigencia_vieja, fecha_ajustada) no adelanta la fecha del encabezado
+            "petropar": max((f["fecha_vigencia"] for f in precios if f["fecha_vigencia"] <= hoy), default=None),
             **{s: (v["diario"][-1][0] if v["diario"] else None) for s, v in series_oil.items()},
         },
         "productos": productos_json(productos),

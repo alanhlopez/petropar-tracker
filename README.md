@@ -63,8 +63,9 @@ queda como artifact de cada corrida.
   `gh api -X PUT repos/<dueño>/<repo>/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true`
 - Nada más: `GITHUB_TOKEN` alcanza para PRs, issues y commits.
 
-Nota: los PR que abre el scraper con `GITHUB_TOKEN` no disparan `tests.yml`; por eso
-`scrape.yml` corre pytest antes de abrirlos.
+Nota: en los PR que abre el scraper con `GITHUB_TOKEN`, `tests.yml` no llega a correr (GitHub
+muestra una corrida en rojo sin jobs que no indica tests fallidos); por eso `scrape.yml` corre
+pytest antes de abrirlos.
 
 ## Cómo aprobar un PR de precios
 
@@ -75,6 +76,9 @@ Nota: los PR que abre el scraper con `GITHUB_TOKEN` no disparan `tests.yml`; por
    - `vigencia_vieja` / `vigencia_lejana`: Petropar no actualizó la fecha de vigencia; la fila
      entra con `fecha_estado = a_confirmar`. Si se conoce la fecha real (por prensa), corregirla
      después vía `data/correcciones_aprobadas.csv`.
+   - `conflicto_historico`: la página publica un precio "vigente desde" una fecha en la que el
+     histórico (p. ej. el documento oficial) tiene otro. No aprobar a ciegas: revisar la fuente y,
+     si corresponde, registrar el caso en `data/reports/conflictos_fuentes.csv`.
    - `fecha_ajustada`: dos cambios seguidos antes de que rija el anterior; la fecha se corrió al
      día siguiente del último registro, `a_confirmar`.
    - `vigencia_discrepante`: sin cambio de precio, pero la página publica otra vigencia que la del
@@ -84,7 +88,11 @@ Nota: los PR que abre el scraper con `GITHUB_TOKEN` no disparan `tests.yml`; por
 4. Si está bien: **Merge**. `sitio.yml` regenera `site/data.json` y el sitio se actualiza.
    Si está mal: cerrar el PR sin mergear (la misma propuesta no se vuelve a abrir) y corregir a
    mano si hace falta.
-5. Cerrar los issues `precio-nuevo` / `revisar` cuando estén resueltos.
+5. `precio-nuevo` se cierra solo cuando no quedan PRs de precios abiertos; `revisar` se cierra a mano.
+
+Hay un solo PR de precios abierto a la vez: si Petropar cambia de nuevo mientras uno espera, el
+cambio se avisa en el issue `precio-nuevo` y se propone en un PR nuevo apenas se mergee o cierre
+el pendiente. Un PR cerrado sin mergear no se vuelve a abrir para el mismo cambio.
 
 Reglas que no se negocian (ver CLAUDE.md): nunca inventar ni completar precios (sin fuente va
 `a_confirmar`), no reescribir filas existentes salvo corrección aprobada y registrada, y

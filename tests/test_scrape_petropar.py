@@ -105,6 +105,7 @@ def test_index_con_bytes_cp1252_se_decodifica():
 @pytest.mark.parametrize("texto,esperado", [
     ("G. 9.285", (9285, "")), ("G. 11.395", (11395, "")),
     ("G. 7.374/KG", (7374, "kg")), ("G. 4.240/litro", (4240, "litro")), ("G.950", (950, "")),
+    ("Gs. 9.285", (9285, "")), ("₲ 9.285", (9285, "")), ("gs 7.374/kg", (7374, "kg")),
 ])
 def test_parsear_precio(texto, esperado):
     assert sp.parsear_precio(texto) == esperado
@@ -302,6 +303,20 @@ def test_vigencia_vieja_queda_a_confirmar(tmp_path):
     assert fila["fecha_estado"] == "a_confirmar"
     assert ("vigencia_vieja", "diesel_pora") in reglas(resumen)
     assert resumen["revisar"]
+    assert not any(r == "conflicto_historico" for r, _ in reglas(resumen))  # sin filas en esa fecha
+
+
+def test_conflicto_historico_si_la_vigencia_vieja_contradice_el_historico(tmp_path):
+    # caso Ecoflex: la página publica un precio "vigente desde" una fecha en la que el histórico tiene otro
+    _, ruta = correr(tmp_path, cambios={"diesel_pora": (9000, "2026-10-01")})
+    filas = leer_csv(ruta)
+    filas.append(filas[[f["product_id"] for f in filas].index("diesel_pora")] | {
+        "fecha_vigencia": "2026-09-01", "precio_gs": "9100"})
+    escribir_csv(ruta, COLUMNAS_PRECIOS, filas)
+    resumen = sp.ejecutar(leer("vigencia_normal.html"), leer("index_normal.html"), AHORA, precios=ruta)
+    assert ("conflicto_historico", "diesel_pora") in reglas(resumen)
+    [a] = [a for a in resumen["alertas"] if a["regla"] == "conflicto_historico"]
+    assert "9100" in a["detalle"] and "2026-09-01" in a["detalle"]
 
 
 @pytest.mark.parametrize("ahora,esperado", [
@@ -444,3 +459,19 @@ def test_main_con_cambio_guarda_captura_y_resumen(tmp_path, monkeypatch):
     assert captura.parent == tmp_path / "capturas"
     assert (captura / "vigencia.html").read_bytes() == leer("vigencia_normal.html")
     assert (captura / "index.html").read_bytes() == leer("index_normal.html")
+
+
+def test_error_de_estructura_lleva_la_url_de_la_pagina(tmp_path):
+    ruta = tmp_path / "resumen.json"
+    sp.main(["--vigencia-html", str(FIX / "vigencia_estructura_distinta.html"),
+             "--index-html", str(FIX / "index_normal.html"), "--sin-escribir", "--resumen", str(ruta)])
+    resumen = json.loads(ruta.read_text())
+    assert resumen["tipo_error"] == "estructura" and resumen["url"] == sp.URL_VIGENCIA
+
+
+@pytest.mark.parametrize("unidad,pid", [
+    ("kg", "glp_kg"), ("kgs", "glp_kg"), ("kilo", "glp_kg"), ("kilogramos", "glp_kg"),
+    ("l", "glp_litro"), ("lt", "glp_litro"), ("lts", "glp_litro"), ("litros", "glp_litro"),
+])
+def test_unidades_de_glp(unidad, pid):
+    assert sp.identificar("Ñande Gas", unidad) == pid

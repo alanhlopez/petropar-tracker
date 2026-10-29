@@ -38,7 +38,8 @@
   function fmtD(d) { return fmtIso(d.toISOString().slice(0, 10)); }
   function iso(d) { return d.toISOString().slice(0, 10); }
   function urlOk(u) { return typeof u === 'string' && /^https?:\/\//i.test(u); }
-  function cvar(id) { return 'var(--c-' + id + ')'; }
+  // el id va dentro de atributos style: solo se aceptan ids simples
+  function cvar(id) { return /^[a-z0-9_]+$/.test(id) ? 'var(--c-' + id + ')' : 'currentColor'; }
   function el(sel) { return document.querySelector(sel); }
 
   /* ---------- preparación de datos ---------- */
@@ -683,7 +684,12 @@
     el('#frescura').textContent = f + (o.length ? ' · ' + o.join(', ') : '') + '.';
     if (D.generado) el('#generado').textContent = 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
     var hu = (D.productos || []).filter(function (p) { return p.datos_hasta; }).map(function (p) {
-      return p.nombre + ': sin dato desde el ' + fmtIso(p.datos_hasta) + '.';
+      // si el scraper ya retomó la serie, el hueco tiene fin
+      var sig = ((PRODS[p.id] || {}).rows || []).filter(function (r) { return r.fecha > p.datos_hasta; })
+        .sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; })[0];
+      return p.nombre + (sig
+        ? ': sin dato entre el ' + fmtIso(p.datos_hasta) + ' y el ' + fmtIso(sig.fecha) + '.'
+        : ': sin dato desde el ' + fmtIso(p.datos_hasta) + '.');
     });
     el('#nota-huecos').textContent = hu.length ? 'Hoy: ' + hu.join(' ') : 'Hoy no hay huecos conocidos.';
   }

@@ -21,6 +21,7 @@ class GH:
     def __init__(self, issues=None, corridas=None):
         self.issues = issues or []  # dicts: number, label, body, comments, state
         self.corridas = corridas or []
+        self.prs_abiertos = []
         self.llamadas = []
 
     def __call__(self, *args):
@@ -46,6 +47,8 @@ class GH:
                 return ""
             case ("run", "list", *_):
                 return json.dumps(self.corridas)
+            case ("pr", "list", *_):
+                return json.dumps([{"number": n} for n in self.prs_abiertos])
         raise AssertionError(f"llamada inesperada a gh: {args}")
 
     def issue(self, n):
@@ -137,3 +140,26 @@ def test_cuerpo_pr_lista_filas_alertas_y_captura():
                                   captura="data/capturas/2026-10-28T210000Z"), RUN)
     assert "| mbarete | 9.285 | 2026-10-29 | confirmada |" in cuerpo
     assert "data/capturas/2026-10-28T210000Z" in cuerpo and "`variacion`" in cuerpo and RUN in cuerpo
+
+
+def test_cambio_con_pr_de_precios_pendiente_lo_dice():
+    [aviso] = av.avisos_scraper(resumen(cambio=True, clave_cambio="c2", filas_nuevas=[FILA]), RUN,
+                                "https://github.com/x/y/pull/7", pr_pendiente=True)
+    assert "sin resolver" in aviso.cuerpo and "pull/7" in aviso.cuerpo
+
+
+def test_error_con_texto_de_la_pagina_no_rompe_el_bloque_y_se_trunca():
+    [aviso] = av.avisos_scraper(resumen(estado="error", tipo_error="estructura",
+                                        error="```" + "x" * 5000 + "~~~~"), RUN, None)
+    assert aviso.cuerpo.count("~~~~") == 2 and "x" * 2001 not in aviso.cuerpo
+
+
+def test_sin_cambio_y_sin_prs_pendientes_cierra_precio_nuevo(tmp_path):
+    gh = GH(issues=[{"number": 1, "label": "precio-nuevo", "body": "x", "comments": [], "state": "open"}])
+    gh.prs_abiertos = [5]
+    ruta = escribir(tmp_path, resumen())
+    av.main(["scraper", "--resumen", ruta, "--run-url", RUN], gh=gh)
+    assert gh.issues[0]["state"] == "open"  # todavía hay un PR de precios abierto
+    gh.prs_abiertos = []
+    av.main(["scraper", "--resumen", ruta, "--run-url", RUN], gh=gh)
+    assert gh.issues[0]["state"] == "closed"

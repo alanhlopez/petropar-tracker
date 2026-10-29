@@ -168,8 +168,11 @@ WAYBACK = DATA / "raw" / "wayback"
 
 def test_capturas_wayback_congeladas():
     """Respaldo de las páginas de precios de Petropar (Wayback Machine, 2024–2025): solo lectura."""
+    # el manifiesto también está fijado: editar una captura y regenerarlo no alcanza para pasar
+    manifiesto = (WAYBACK / "SHA256SUMS").read_bytes()
+    assert hashlib.sha256(manifiesto).hexdigest() == "8fa10d23ce95ea99b302c94f8303911b6d87c7545992c17b01d85742eaddbf37"
     esperado = {}
-    for linea in (WAYBACK / "SHA256SUMS").read_text().splitlines():
+    for linea in manifiesto.decode().splitlines():
         sha, nombre = linea.split(maxsplit=1)
         esperado[nombre] = sha
     presentes = {p.name for p in WAYBACK.iterdir() if p.name != "SHA256SUMS"}
