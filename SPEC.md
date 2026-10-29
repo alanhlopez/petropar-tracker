@@ -119,6 +119,8 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Vistas del sitio: (c) Gs constantes (IPC), (d) US$ por litro.
 
 ## v2: comparación con emblemas privados
+El sitio se publica como **CombusPy** (proyecto de Vercel `combuspy-tracker`, https://combuspy-tracker.vercel.app). Cuando entren los emblemas privados, este gráfico de Petropar pasa a ser una sección "Histórico" del sitio; mantener `site/` organizado para sumar secciones sin romper la URL actual.
+
 Por categoría de producto (diésel común / diésel premium, nafta 88–90, nafta 93–95, nafta 97+): un producto por vista y varios emblemas en el mismo gráfico. No implementar todavía.
 
 ## Fuera de alcance (por ahora)

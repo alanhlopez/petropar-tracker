@@ -154,10 +154,15 @@ Qué pasa después, sin tocar nada:
 
 ### Riesgo: commits del bot y plan Hobby
 
+**Estado actual: el repo es público, así que esto no aplica** (se hizo público el 28/10/2026
+justamente por esto: con el repo privado, Vercel bloqueaba hasta los commits locales, porque salían
+con un email que GitHub no asocia a la cuenta).
+
 Los commits de `oil.yml` y `sitio.yml` los hace `github-actions[bot]`. En el plan Hobby con repo
-privado, Vercel puede bloquear los deploys de commits cuyo autor no es el dueño de la cuenta.
-Verificarlo con el primer commit automático en *Vercel → Deployments* (o en el commit en GitHub:
-debería tener el check "Vercel"). Si aparece bloqueado, las salidas, en orden de preferencia:
+privado, Vercel bloquea los deploys de commits cuyo autor no es el dueño de la cuenta. Si el repo
+vuelve a ser privado, verificarlo con el primer commit automático en *Vercel → Deployments* (o en
+el commit en GitHub: el check "Vercel" dice "Deployment was blocked"). Las salidas, en orden de
+preferencia:
 
 1. **Hacer el repo público** (Settings → General → Danger Zone → Change visibility). No hay
    secrets en el código y los datos son públicos.
