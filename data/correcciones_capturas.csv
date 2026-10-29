@@ -1,2 +1,2 @@
-fecha_vigencia,product_id,captured_at,estado,fecha_estado,nota,aprobado_el
-2026-10-29,nafta_ecoflex85,2026-10-28T21:48:28+00:00,verificado,a_confirmar,"vigencia publicada 2024-08-13 no es posterior al último registro (2024-11-08); se usa 2026-10-29. Conflicto con el documento oficial AIP 90150: tiene 7.730 vigente el 2024-08-13 (desde 2024-07-20, confirmado hasta 2024-11-08); la fecha real de la baja a 7.330 no se conoce",2026-10-28
+fecha_vigencia,product_id,captured_at,precio_gs,estado,fecha_estado,nota,aprobado_el
+2026-10-29,nafta_ecoflex85,2026-10-28T21:48:28+00:00,7330,verificado,a_confirmar,"vigencia publicada 2024-08-13 no es posterior al último registro (2024-11-08); se usa 2026-10-29. Conflicto con el documento oficial AIP 90150: tiene 7.730 vigente el 2024-08-13 (desde 2024-07-20, confirmado hasta 2024-11-08); la fecha real de la baja a 7.330 no se conoce",2026-10-28

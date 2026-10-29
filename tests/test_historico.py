@@ -189,5 +189,5 @@ def test_correcciones_de_filas_capturadas(precios):
         assert c["aprobado_el"], c
         [fila] = [p for p in precios if (p["fecha_vigencia"], p["product_id"], p["captured_at"])
                   == (c["fecha_vigencia"], c["product_id"], c["captured_at"])]
-        assert {k: fila[k] for k in ("estado", "fecha_estado", "nota")} == \
-               {k: c[k] for k in ("estado", "fecha_estado", "nota")}
+        assert {k: fila[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")} == \
+               {k: c[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")}

@@ -95,6 +95,12 @@ Hay un solo PR de precios abierto a la vez: si Petropar cambia de nuevo mientras
 cambio se avisa en el issue `precio-nuevo` y se propone en un PR nuevo apenas se mergee o cierre
 el pendiente. Un PR cerrado sin mergear no se vuelve a abrir para el mismo cambio.
 
+Ojo al rechazar: el scraper compara contra main, así que mientras Petropar siga publicando ese
+precio lo va a seguir detectando como cambio (el issue `precio-nuevo` queda abierto) y lo va a
+volver a incluir si después cambia otro producto. Si la página está mal, avisar a Petropar; si
+el precio es correcto pero la fecha no, conviene mergear y corregir la fecha después como
+corrección aprobada.
+
 Reglas que no se negocian (ver CLAUDE.md): nunca inventar ni completar precios (sin fuente va
 `a_confirmar`), no reescribir filas existentes salvo corrección aprobada y registrada, y
 `data/raw/` no se edita.

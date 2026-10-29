@@ -78,8 +78,12 @@ jobs:
           REVISAR: ${{ steps.resumen.outputs.revisar }}
         run: |
           rama="precios/${CLAVE}"
-          # se decide por el PR, no por la rama (al mergear o cerrar la rama se puede borrar)
-          previo=$(gh pr list --head "$rama" --state all --json state,url --jq '.[0] // empty')
+          # se decide por el PR, no por la rama (al mergear o cerrar la rama se puede borrar).
+          # El más reciente de precios/CLAVE y precios/CLAVE-<run>: así un rechazo posterior a un merge cuenta.
+          previo=$(gh pr list --state all --label precio-nuevo --limit 200 \
+            --json headRefName,state,url,createdAt \
+            --jq "[.[] | select(.headRefName == \"$rama\" or (.headRefName | startswith(\"$rama-\")))]
+                  | sort_by(.createdAt) | last // empty")
           case "$(jq -r '.state // empty' <<< "$previo")" in
             OPEN|CLOSED)
               # mismo cambio ya propuesto (abierto o rechazado): no duplicar

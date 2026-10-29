@@ -317,6 +317,8 @@ def test_conflicto_historico_si_la_vigencia_vieja_contradice_el_historico(tmp_pa
     assert ("conflicto_historico", "diesel_pora") in reglas(resumen)
     [a] = [a for a in resumen["alertas"] if a["regla"] == "conflicto_historico"]
     assert "9100" in a["detalle"] and "2026-09-01" in a["detalle"]
+    [fila] = resumen["filas_nuevas"]
+    assert a["detalle"] in fila["nota"]  # la fila lleva el conflicto desde la captura
 
 
 @pytest.mark.parametrize("ahora,esperado", [

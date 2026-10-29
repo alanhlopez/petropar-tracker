@@ -281,10 +281,11 @@ def detectar_cambios(vigentes: dict[str, Vigente], historia: list[dict],
                 # el histórico ya dice qué precio regía en la vigencia publicada: si no coincide, avisar
                 regia = precio_en(historia, pid, v.vigencia)
                 if regia and int(regia["precio_gs"]) != v.precio:
-                    alertas.append(alerta("conflicto_historico", pid,
-                                          f"la página dice {v.precio} desde {v.vigencia.isoformat()}, pero el "
-                                          f"histórico tiene {regia['precio_gs']} ese día (desde "
-                                          f"{regia['fecha_vigencia']}, {regia['estado']}/{regia['fecha_estado']})"))
+                    detalle = (f"la página dice {v.precio} desde {v.vigencia.isoformat()}, pero el "
+                               f"histórico tiene {regia['precio_gs']} ese día (desde "
+                               f"{regia['fecha_vigencia']}, {regia['estado']}/{regia['fecha_estado']})")
+                    alertas.append(alerta("conflicto_historico", pid, detalle))
+                    notas.append(detalle)
             if fecha <= ultima:
                 # ej.: ya hay una fila a_confirmar de mañana y hubo otro cambio el mismo día
                 fecha, fecha_estado = ultima + timedelta(days=1), "a_confirmar"

@@ -163,3 +163,21 @@ def test_sin_cambio_y_sin_prs_pendientes_cierra_precio_nuevo(tmp_path):
     gh.prs_abiertos = []
     av.main(["scraper", "--resumen", ruta, "--run-url", RUN], gh=gh)
     assert gh.issues[0]["state"] == "closed"
+
+
+def test_pr_nuevo_tras_quedar_pendiente_se_avisa():
+    gh = GH()
+    r = resumen(cambio=True, clave_cambio="c3", filas_nuevas=[FILA])
+    [pendiente] = av.avisos_scraper(r, RUN, "https://github.com/x/y/pull/7", pr_pendiente=True)
+    assert av.avisar(pendiente, gh) == "creado"
+    [otra_vez] = av.avisos_scraper(r, RUN, "https://github.com/x/y/pull/7", pr_pendiente=True)
+    assert av.avisar(otra_vez, gh) == "repetido"
+    [con_pr] = av.avisos_scraper(r, RUN, "https://github.com/x/y/pull/8")
+    assert av.avisar(con_pr, gh) == "comentado" and "pull/8" in gh.issues[0]["comments"][-1]
+
+
+def test_revisar_no_atribuye_el_pr_pendiente_a_este_cambio():
+    avisos = av.avisos_scraper(resumen(cambio=True, revisar=True, clave_cambio="c", clave_alertas="a",
+                                       filas_nuevas=[FILA], alertas=[ALERTA]),
+                               RUN, "https://github.com/x/y/pull/7", pr_pendiente=True)
+    assert "PR: " not in avisos[1].cuerpo

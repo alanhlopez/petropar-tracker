@@ -98,11 +98,13 @@ def avisos_scraper(resumen: dict, run_url: str, pr_url: str | None, pr_pendiente
         else:
             pr = f"PR: {pr_url}" if pr_url else "No se pudo abrir el PR: ver la corrida."
         cuerpo = f"Petropar cambió precios.\n\n{tabla_filas(resumen['filas_nuevas'])}\n\n{pr}\n\n[Corrida]({run_url})"
+        # la clave incluye el estado del PR: pasar de "pendiente" a "PR abierto" tiene que avisarse
+        estado_pr = "pendiente" if pr_pendiente else (pr_url or "sin-pr")
         avisos.append(Aviso("precio-nuevo", "Precio nuevo de Petropar", cuerpo,
-                            f"cambio:{resumen['clave_cambio']}"))
+                            f"cambio:{resumen['clave_cambio']}:{estado_pr}"))
     if resumen["revisar"]:
         cuerpo = (f"Reglas de plausibilidad disparadas:\n\n{lista_alertas(resumen['alertas'])}\n\n"
-                  + (f"PR: {pr_url}\n\n" if pr_url else "") + f"[Corrida]({run_url})")
+                  + (f"PR: {pr_url}\n\n" if pr_url and not pr_pendiente else "") + f"[Corrida]({run_url})")
         avisos.append(Aviso("revisar", "Revisar precios de Petropar", cuerpo,
                             f"alertas:{resumen['clave_alertas']}"))
     return avisos

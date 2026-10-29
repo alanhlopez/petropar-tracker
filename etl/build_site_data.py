@@ -6,6 +6,7 @@
 - Presidentes y eventos (solo los que tienen mostrar=true).
 Si todavía no existe data/petroleo.csv, las series de petróleo salen vacías.
 """
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -120,7 +121,8 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argparse.ArgumentParser(description="Genera site/data.json desde los CSV de data/").parse_args(argv)
     datos = construir()
     SALIDA.parent.mkdir(exist_ok=True)
     SALIDA.write_text(json.dumps(datos, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
