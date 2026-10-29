@@ -98,6 +98,23 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Sombreado por presidente (5 mandatos desde Lugo), líneas verticales de eventos (pandemia) y marcas de promociones (`tipo = promo`, solo `mostrar = true`; con `fecha_fin` como franja), distinguibles de los hitos.
 - GLP (kg y litro) NO va en el eje de los combustibles líquidos: otro producto, otra unidad y otra escala. Va en un gráfico chico aparte o en una pestaña.
 - Selector de vista: (a) doble eje Gs / US$ por galón, (b) índice base 100.
+- Navegación temporal (`site/rango.js`, lógica pura probada con node en `tests/test_rango_js.py`):
+  - Botones 1M · 6M · YTD (desde el 1/1) · 1A · 5A · 10A · Todo (por defecto). Otros rangos (p. ej. 3 años) se
+    eligen con el navegador o con los campos de fecha, sin agregar botones.
+  - Navegador bajo el gráfico: minigráfico de Diésel Porã (o del primer producto activo) con una ventana
+    arrastrable y estirable desde los bordes, más campos Desde/Hasta. Con un rango que no es de un botón, ningún
+    botón queda activo. Teclado: flechas mueven la ventana, Shift+flechas mueven el final, Inicio/Fin.
+  - Gráfico principal, solo con mouse: arrastrar desplaza, Ctrl/⌘ + rueda hace zoom (sin modificador la rueda
+    hace scroll), doble click vuelve a Todo. En táctil no hay gestos sobre el gráfico.
+  - Límites: dentro de los datos; zoom mínimo de 1 mes.
+  - Ejes Y (combustibles y petróleo) reajustados al rango visible con margen; petróleo diario si el rango es de
+    2 años o menos, promedio mensual si es mayor; eje X en años, meses ("ene 2026") o días ("15 oct").
+  - Rótulos de presidentes, hitos y tramo: completos, abreviados u ocultos; nunca cortados en el borde.
+  - Etiquetas finales: valor en la fecha final visible y variación del período ("Diésel Porã 9.285 · ▲ +46,7%"):
+    precio vigente al final contra el vigente al inicio del rango (no el primer cambio dentro del rango); sin
+    variación si no hay precio al inicio o si hay un hueco entre ambos. ▲ rojo sube, ▼ verde baja.
+  - URL: `?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` (sin parámetros = Todo). "Descargar imagen" exporta el rango
+    visible con las fechas en el título.
 - Selector de productos y de serie internacional: Brent (por defecto) / ULSD / Ocultar. WTI se guarda en `petroleo.csv` pero no se publica en `data.json`. Nota metodológica: "Brent: referencia internacional del crudo. ULSD (Costa del Golfo, EE.UU.): referencia del diésel refinado; Paraguay importa derivados, no crudo."
 - Chips de productos con estado activo (relleno suave + ✓) e inactivo (contorno gris, texto atenuado) claro; el anillo es solo para foco de teclado.
 - "Ver datos en tabla" (desplegable al final): histórico completo, filtrable por producto y años.

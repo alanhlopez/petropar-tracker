@@ -98,10 +98,13 @@
       <fieldset class="seg" id="ctl-rango">
         <legend>Período</legend>
         <div class="seg-g">
-          <label><input type="radio" name="rango" value="all" checked><span>Todo</span></label>
-          <label><input type="radio" name="rango" value="10"><span>10 años</span></label>
-          <label><input type="radio" name="rango" value="5"><span>5 años</span></label>
-          <label><input type="radio" name="rango" value="2"><span>2 años</span></label>
+          <label><input type="radio" name="rango" value="1m"><span>1M</span></label>
+          <label><input type="radio" name="rango" value="6m"><span>6M</span></label>
+          <label><input type="radio" name="rango" value="ytd"><span title="Desde el 1 de enero">YTD</span></label>
+          <label><input type="radio" name="rango" value="1a"><span>1A</span></label>
+          <label><input type="radio" name="rango" value="5a"><span>5A</span></label>
+          <label><input type="radio" name="rango" value="10a"><span>10A</span></label>
+          <label><input type="radio" name="rango" value="todo" checked><span>Todo</span></label>
         </div>
       </fieldset>
     </div>
@@ -109,6 +112,21 @@
 
     <div class="chart" id="chart-liq"></div>
     <p class="nota-eje" id="aviso-vista" role="note"></p>
+    <div class="nav-t" id="nav-liq">
+      <div class="nav-mini" id="nav-mini">
+        <div class="nav-sombra" id="nav-sombra-a"></div><div class="nav-sombra" id="nav-sombra-b"></div>
+        <div class="nav-ventana" id="nav-ventana" tabindex="0" role="group" aria-label="Período visible del gráfico" aria-describedby="nav-ayuda"
+          title="Arrastrá la ventana o sus bordes. Teclado: flechas la mueven, Shift+flechas cambian el final, Inicio/Fin van a los extremos. En el gráfico: arrastrar desplaza, Ctrl/⌘ + rueda hace zoom, doble click vuelve a Todo.">
+          <span class="nav-h nav-h-a" data-borde="a" aria-hidden="true"></span><span class="nav-h nav-h-b" data-borde="b" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="nav-fechas">
+        <label>Desde <input type="date" id="nav-desde"></label>
+        <label>Hasta <input type="date" id="nav-hasta"></label>
+        <span class="nav-ayuda">Arrastrá la ventana para cambiar el período.</span>
+        <span class="sr-only" id="nav-ayuda">Con teclado: flechas mueven la ventana, Shift+flechas cambian el final, Inicio y Fin van a los extremos. En el gráfico, con mouse: arrastrar desplaza, Ctrl o Comando más la rueda hace zoom, doble click vuelve a Todo.</span>
+      </div>
+    </div>
     <div class="leyenda" id="leyenda-liq"></div>
   </section>
 
@@ -137,7 +155,7 @@
         <li><strong>Índice base 100.</strong> Pone todas las series visibles en la misma escala relativa. La base es la primera fecha del período elegido en la que ya existen todas las series visibles; en esa fecha cada serie vale 100 (se marca en el gráfico). Cambiar el período, los productos o la serie internacional cambia la base.</li>
         <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA, en US$ por galón. Brent: referencia internacional del crudo (Europa, FOB; la EIA lo publica en US$ por barril y se divide por 42). ULSD (Costa del Golfo, EE.UU.): referencia del diésel refinado; Paraguay importa derivados, no crudo. Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
         <li><strong>Último cambio.</strong> En "Precios hoy", el monto (▲ sube, ▼ baja) es la diferencia con el precio anterior con fuente. No se muestra si el precio actual está por confirmar, si el anterior tiene más de 6 meses o si entre los dos hay un período sin datos.</li>
-        <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente o donde no hay fila con fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024; las filas de GLP que quedan aisladas se ven como un punto) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo chico (solo contorno) en el último punto conocido y otro en el primero posterior; al pasar el cursor por el hueco el cuadro emergente indica entre qué fechas no hay datos. <span id="nota-huecos"></span></li>
+        <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente o donde no hay fila con fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024; las filas de GLP que quedan aisladas se ven como un punto) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo chico (solo contorno) en el último punto conocido y otro en el primero posterior; el detalle de un punto (click o Enter) indica hasta cuándo rigió ese precio y desde cuándo no hay datos. <span id="nota-huecos"></span></li>
         <li><strong>Fuentes.</strong> Hasta 2024: respuesta oficial de Petropar a la solicitud de información pública N° 90150 (17/03/2025). Desde 2025: prensa y planilla propia, y luego la página oficial de Petropar. Cada precio indica su fuente en el cuadro emergente.</li>
         <li><strong>Cambio de tipo de precio.</strong> De 2009 a 2014 el dato es el "precio máximo y/o sugerido de venta al público"; desde 2015 es el "precio de venta al público". No son exactamente lo mismo, aunque en 2015 las dos páginas del documento oficial coinciden. En el gráfico, ese primer tramo va con fondo de trama fina y el rótulo "Precio máximo/sugerido" (el rango sale de los datos: desde el primer precio de ese tipo hasta la primera fila de venta al público), y el cuadro emergente aclara de qué tipo es cada precio.</li>
         <li><strong>Productos que aparecen después.</strong> La serie empieza en 2009, pero Diésel Mbarete aparece en 2011 y Oikoite 93 y Ecoflex 85 en 2015. Nunca se extrapola un producto hacia atrás de su primera fecha.</li>
@@ -172,6 +190,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="rango.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
