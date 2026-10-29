@@ -75,10 +75,11 @@ pytest antes de abrirlos.
 3. Revisar las alertas, si las hay. Las más comunes:
    - `vigencia_vieja` / `vigencia_lejana`: Petropar no actualizó la fecha de vigencia; la fila
      entra con `fecha_estado = a_confirmar`. Si se conoce la fecha real (por prensa), corregirla
-     después vía `data/correcciones_aprobadas.csv`.
+     después como corrección aprobada registrada en `data/correcciones_capturas.csv`.
    - `conflicto_historico`: la página publica un precio "vigente desde" una fecha en la que el
      histórico (p. ej. el documento oficial) tiene otro. No aprobar a ciegas: revisar la fuente y,
-     si corresponde, registrar el caso en `data/reports/conflictos_fuentes.csv`.
+     si se aprueba igual, anotar el conflicto en la fila (corrección aprobada registrada en
+     `data/correcciones_capturas.csv`).
    - `fecha_ajustada`: dos cambios seguidos antes de que rija el anterior; la fecha se corrió al
      día siguiente del último registro, `a_confirmar`.
    - `vigencia_discrepante`: sin cambio de precio, pero la página publica otra vigencia que la del

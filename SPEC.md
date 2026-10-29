@@ -30,7 +30,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   - `fuente`: cita en texto tal como figura en el histórico (ej. "ABC 16-10-2021").
   - `fuente_url`: URL exacta; vacía hasta que se encuentre. Si hay varias, separadas por ` | `.
   - `nota`: aclaraciones (lo que en el histórico estaba entre paréntesis, en estado o en fuente).
-  - Correcciones de filas existentes: solo con aprobación explícita, registradas en `data/correcciones_aprobadas.csv` (fecha_original, fecha_nueva, estado, fecha_estado, fuente, fuente_url, nota, aprobado_el; nunca cambian el precio) y en un commit propio que lo diga.
+  - Correcciones de filas existentes: solo con aprobación explícita, registradas en `data/correcciones_aprobadas.csv` (fecha_original, fecha_nueva, estado, fecha_estado, fuente, fuente_url, nota, aprobado_el; nunca cambian el precio) y en un commit propio que lo diga. Las filas agregadas por el scraper se corrigen igual, pero se registran en `data/correcciones_capturas.csv` (fecha_vigencia, product_id, captured_at, estado, fecha_estado, nota, aprobado_el).
   - Una fila está "firme" solo si estado = verificado y fecha_estado = confirmada; cualquier otra combinación se marca en el sitio.
 - `data/petroleo.csv`: fecha, serie (wti|ulsd), valor_usd, unidad — dato diario.
 - `data/presidentes.csv`: nombre, inicio, fin (intervalo [inicio, fin): el `fin` de uno es el `inicio` del siguiente; `fin` vacío = mandato en curso)

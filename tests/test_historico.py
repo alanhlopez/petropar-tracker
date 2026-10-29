@@ -179,3 +179,15 @@ def test_capturas_wayback_congeladas():
     assert presentes == set(esperado), "archivos agregados o borrados en data/raw/wayback"
     for nombre, sha in esperado.items():
         assert hashlib.sha256((WAYBACK / nombre).read_bytes()).hexdigest() == sha, nombre
+
+
+def test_correcciones_de_filas_capturadas(precios):
+    """Filas del scraper corregidas con aprobación: la fila coincide con lo registrado y nunca cambia el precio."""
+    correcciones = leer_csv(DATA / "correcciones_capturas.csv")
+    assert correcciones
+    for c in correcciones:
+        assert c["aprobado_el"], c
+        [fila] = [p for p in precios if (p["fecha_vigencia"], p["product_id"], p["captured_at"])
+                  == (c["fecha_vigencia"], c["product_id"], c["captured_at"])]
+        assert {k: fila[k] for k in ("estado", "fecha_estado", "nota")} == \
+               {k: c[k] for k in ("estado", "fecha_estado", "nota")}
