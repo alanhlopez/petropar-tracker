@@ -151,7 +151,7 @@ Mantener `site/` organizado para sumar secciones sin romper la URL actual.
 - Precio de referencia: lista en **Gran Asunción**. Aclararlo en la página (en el interior puede variar).
 
 ### Datos
-- `data/equivalencias.csv`: producto_marca → categoría, con fuente (marca, producto, categoria, fuente, fuente_url).
+- `data/equivalencias.csv`: emblema, producto_comercial, categoria (mismas etiquetas que `productos.csv`), desde, hasta, fuente (texto + URL). Solo equivalencias respaldadas por la fuente; las inferidas por orden de precios quedan en el relevamiento.
 - Mismas reglas que Petropar: nunca inventar ni completar precios; sin fuente va `a_confirmar`; histórico de solo agregar.
 
 ## Fuera de alcance (por ahora)
