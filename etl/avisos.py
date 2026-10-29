@@ -4,6 +4,7 @@ Etiquetas (ver SPEC.md, Automatización):
   scraper-roto  el scraper falló o no hubo corrida exitosa en 24 h
   precio-nuevo  hubo cambio de precio, con link al PR
   revisar       se disparó alguna regla de plausibilidad
+  deploy-atrasado  el data.json publicado tiene más de 48 h de atraso respecto de main
 
 Un issue abierto por etiqueta: si ya hay uno se comenta en vez de abrir otro.
 Cada aviso lleva una marca <!-- clave: ... --> (clave_cambio / clave_alertas del
@@ -13,7 +14,8 @@ issue `scraper-roto`.
 
 Subcomandos:
   scraper   procesa resumen_scraper.json después de una corrida de scrape.yml
-  frescura  avisa si la última corrida exitosa de scrape.yml tiene más de 24 h
+  frescura  avisa si la última corrida exitosa de scrape.yml tiene más de 24 h y, con
+            --sitio-url, si el sitio publicado quedó atrasado respecto de main
   pr        imprime el cuerpo del PR de precios (markdown) a partir del resumen
   etiquetas crea o actualiza las etiquetas (antes de abrir el PR con ellas)
 """
@@ -21,6 +23,7 @@ import argparse
 import json
 import subprocess
 import sys
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -29,8 +32,11 @@ ETIQUETAS = {
     "scraper-roto": ("d73a4a", "El scraper falló o no corrió en 24 h"),
     "precio-nuevo": ("0e8a16", "Petropar cambió precios: hay un PR para aprobar"),
     "revisar": ("fbca04", "Se disparó una regla de plausibilidad"),
+    "deploy-atrasado": ("5319e7", "El sitio publicado no refleja main: Vercel dejó de desplegar"),
 }
 HORAS_FRESCURA = 24
+HORAS_DEPLOY = 48
+DATA_JSON = Path(__file__).resolve().parent.parent / "site" / "data.json"
 
 
 @dataclass
@@ -114,6 +120,36 @@ def frescura_vencida(ultima: datetime | None, ahora: datetime, horas: int = HORA
     return ultima is None or ahora - ultima > timedelta(hours=horas)
 
 
+def generado(datos: dict) -> datetime:
+    return datetime.fromisoformat(datos["generado"])
+
+
+def aviso_deploy(publicado: dict | None, en_main: dict, url: str, run_url: str,
+                 horas: int = HORAS_DEPLOY) -> Aviso | None:
+    """None si el sitio publicado está al día (o a menos de `horas` de main)."""
+    if publicado is None:
+        cuerpo = f"No se pudo leer `{url}/data.json`: el sitio puede estar caído o sin publicar."
+        clave = f"deploy:sin-datos:{generado(en_main).isoformat()}"
+    else:
+        atraso = generado(en_main) - generado(publicado)
+        if atraso <= timedelta(hours=horas):
+            return None
+        cuerpo = (f"El `data.json` publicado en {url} es del {publicado['generado']} y el de main del "
+                  f"{en_main['generado']} ({atraso.days} d {atraso.seconds // 3600} h de atraso). "
+                  "Vercel dejó de desplegar: ver *Vercel → Deployments* y la sección \"Riesgo: commits "
+                  "del bot y plan Hobby\" del README.")
+        clave = f"deploy:{publicado['generado']}"
+    return Aviso("deploy-atrasado", "Sitio publicado atrasado", f"{cuerpo}\n\n[Chequeo]({run_url})", clave)
+
+
+def leer_publicado(url: str) -> dict | None:
+    try:
+        with urllib.request.urlopen(f"{url.rstrip('/')}/data.json", timeout=30) as r:
+            return json.load(r)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def leer_resumen(ruta: Path) -> dict:
     """Si el scraper murió sin dejar resumen, se trata como error interno."""
     try:
@@ -185,6 +221,7 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
     f = sub.add_parser("frescura")
     f.add_argument("--workflow", default="scrape.yml")
     f.add_argument("--run-url", required=True)
+    f.add_argument("--sitio-url", default="", help="URL del sitio publicado (vacío = no se chequea)")
     r = sub.add_parser("pr")
     r.add_argument("--resumen", type=Path, default=Path("resumen_scraper.json"))
     r.add_argument("--run-url", required=True)
@@ -220,6 +257,14 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
                                 f"No hubo una corrida exitosa de `{args.workflow}` en {HORAS_FRESCURA} h "
                                 f"(última: {desde}).\n\n[Chequeo]({args.run_url})",
                                 f"frescura:{desde}"))
+        if args.sitio_url:
+            url = args.sitio_url.rstrip("/")
+            aviso = aviso_deploy(leer_publicado(url), json.loads(DATA_JSON.read_text(encoding="utf-8")),
+                                 url, args.run_url)
+            if aviso:
+                avisos.append(aviso)
+            elif cerrar("deploy-atrasado", f"El sitio publicado volvió a estar al día: {args.run_url}", gh):
+                print("deploy-atrasado: cerrado")
     for aviso in avisos:
         print(f"{aviso.etiqueta}: {avisar(aviso, gh)}")
     return 0

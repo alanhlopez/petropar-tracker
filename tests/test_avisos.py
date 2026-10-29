@@ -195,3 +195,34 @@ def test_revisar_se_cierra_sin_alertas_ni_prs_pendientes(tmp_path):
     gh.prs_abiertos = []
     av.main(["scraper", "--resumen", sin_alertas, "--run-url", RUN], gh=gh)
     assert gh.issues[0]["state"] == "closed"
+
+
+MAIN = {"generado": "2026-10-28T12:00:00+00:00"}
+
+
+def test_deploy_al_dia_o_con_poco_atraso_no_avisa():
+    assert av.aviso_deploy(MAIN, MAIN, "https://x.vercel.app", RUN) is None
+    assert av.aviso_deploy({"generado": "2026-10-26T13:00:00+00:00"}, MAIN, "https://x.vercel.app", RUN) is None
+
+
+def test_deploy_con_mas_de_48_h_de_atraso_avisa():
+    aviso = av.aviso_deploy({"generado": "2026-10-26T11:00:00+00:00"}, MAIN, "https://x.vercel.app", RUN)
+    assert aviso.etiqueta == "deploy-atrasado" and "2 d 1 h" in aviso.cuerpo
+
+
+def test_sitio_que_no_responde_avisa():
+    aviso = av.aviso_deploy(None, MAIN, "https://x.vercel.app", RUN)
+    assert aviso.etiqueta == "deploy-atrasado" and "No se pudo leer" in aviso.cuerpo
+
+
+def test_frescura_con_sitio_abre_y_cierra_deploy_atrasado(monkeypatch):
+    reciente = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    gh = GH(corridas=[{"createdAt": reciente}])
+    en_main = json.loads(av.DATA_JSON.read_text(encoding="utf-8"))
+    atrasado = {"generado": (av.generado(en_main) - timedelta(days=3)).isoformat()}
+    monkeypatch.setattr(av, "leer_publicado", lambda url: atrasado)
+    av.main(["frescura", "--run-url", RUN, "--sitio-url", "https://x.vercel.app/"], gh=gh)
+    assert [(i["label"], i["state"]) for i in gh.issues] == [("deploy-atrasado", "open")]
+    monkeypatch.setattr(av, "leer_publicado", lambda url: en_main)
+    av.main(["frescura", "--run-url", RUN, "--sitio-url", "https://x.vercel.app"], gh=gh)
+    assert gh.issues[0]["state"] == "closed"

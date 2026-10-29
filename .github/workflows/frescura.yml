@@ -1,4 +1,5 @@
-# Frescura: si scrape.yml no tuvo una corrida exitosa en 24 h, issue `scraper-roto`.
+# Frescura: si scrape.yml no tuvo una corrida exitosa en 24 h, issue `scraper-roto`; si el data.json
+# publicado (variable SITIO_URL) tiene más de 48 h de atraso respecto de main, issue `deploy-atrasado`.
 name: frescura
 
 on:
@@ -25,5 +26,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Última corrida exitosa del scraper
-        run: python -m etl.avisos frescura --workflow scrape.yml --run-url "$RUN_URL"
+      - name: Última corrida exitosa del scraper y sitio publicado al día
+        env:
+          SITIO_URL: ${{ vars.SITIO_URL || 'https://combuspy-tracker.vercel.app' }}
+        run: python -m etl.avisos frescura --workflow scrape.yml --run-url "$RUN_URL" --sitio-url "$SITIO_URL"

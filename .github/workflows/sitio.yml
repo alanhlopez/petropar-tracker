@@ -20,6 +20,8 @@ concurrency:
 jobs:
   data-json:
     runs-on: ubuntu-latest
+    env:
+      VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +38,7 @@ jobs:
       - run: python -m pytest -q
 
       - name: Regenerar y commitear data.json
+        id: commit
         run: |
           python -m etl.build_site_data
           # "generado" cambia en cada corrida: commitear solo si cambió algo más
@@ -47,6 +50,13 @@ jobs:
             git commit -m "Sitio: data.json regenerado"
             git pull --rebase origin main
             git push origin HEAD:main
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
           else
             echo "data.json sin cambios de datos."
           fi
+
+      # Deploy Hook de Vercel (salida c del README): desactivado hasta que exista el secret.
+      # Los secrets no se pueden usar en if:, por eso pasa por el env del job.
+      - name: Avisar a Vercel (Deploy Hook)
+        if: steps.commit.outputs.pushed == 'true' && env.VERCEL_DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK" > /dev/null

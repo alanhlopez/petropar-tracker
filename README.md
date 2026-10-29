@@ -117,22 +117,29 @@ El sitio es estático y no tiene paso de build: Vercel solo sirve la carpeta `si
    Permissions** → *Only select repositories* → elegir `alanhlopez/petropar-tracker` → **Save**.
    Volver a Vercel y tocar **Import** junto al repo.
 4. En *Configure Project*:
-   - **Project Name**: el que quieras (define la URL, p. ej. `petropar-tracker.vercel.app`).
+   - **Project Name**: define la URL. El proyecto actual se llama `combuspy-tracker` →
+     https://combuspy-tracker.vercel.app (si se cambia, actualizar la variable `SITIO_URL`,
+     ver abajo).
    - **Framework Preset**: `Other`.
-   - **Root Directory**: **Edit** → elegir `site` → **Continue**.
+   - **Root Directory**: **Edit** → elegir `site` → **Continue**. **Obligatorio**: con la raíz
+     del repo se publicarían `data/raw/` (el PDF de la AIP), los CSV, los workflows y todo lo demás.
    - **Build and Output Settings**: dejar todo vacío/por defecto (sin *Build Command*, sin
      *Install Command*; el *Output Directory* es la propia carpeta `site`).
-   - **Environment Variables**: ninguna (la clave de la EIA solo la usa GitHub Actions).
-5. **Deploy**. Al minuto da la URL de producción; abrirla y comprobar que carga el gráfico y
-   que dice "Datos al …" con la fecha esperada.
-6. Recomendado, en **Settings** del proyecto:
+   - **Environment Variables**: ninguna. Si Vercel muestra una fila vacía, borrarla con **−**.
+     La `EIA_API_KEY` va solo en los secrets de GitHub Actions, nunca en Vercel.
+5. **Deploy**. Al minuto da la URL de producción.
+6. **Verificar** el deploy:
+   - la URL carga el gráfico y muestra "Datos al …" con la fecha esperada;
+   - `https://<url>/data/raw/` devuelve **404** (prueba de que el *Root Directory* es `site`):
+     `curl -s -o /dev/null -w '%{http_code}\n' https://combuspy-tracker.vercel.app/data/raw/`
+7. Recomendado, en **Settings** del proyecto:
    - *Git → Production Branch*: `main` (ya viene así).
    - *Build and Deployment → Root Directory*: activar **Skip deployments when there are no
      changes to the root directory or its dependencies**, para no redesplegar con commits que
      no tocan `site/`.
    - *Deployment Protection*: dejar *Vercel Authentication* solo para las **Preview
      Deployments** (la producción tiene que ser pública para compartirla).
-7. Opcional: *Settings → Domains* para un dominio propio.
+8. Opcional: *Settings → Domains* para un dominio propio.
 
 Qué pasa después, sin tocar nada:
 
@@ -141,3 +148,25 @@ Qué pasa después, sin tocar nada:
 - Los PR del scraper no tocan `site/`, así que no generan preview; el sitio se actualiza cuando
   se mergean y `sitio.yml` regenera `data.json`.
 - Si un deploy falla, Vercel lo marca en el commit de GitHub y manda un correo a la cuenta.
+- `frescura.yml` compara el `data.json` publicado con el de main: si el publicado tiene más de
+  48 h de atraso, abre un issue `deploy-atrasado` (aviso de que Vercel dejó de desplegar). La URL
+  sale de la variable del repo `SITIO_URL` (por defecto https://combuspy-tracker.vercel.app).
+
+### Riesgo: commits del bot y plan Hobby
+
+Los commits de `oil.yml` y `sitio.yml` los hace `github-actions[bot]`. En el plan Hobby con repo
+privado, Vercel puede bloquear los deploys de commits cuyo autor no es el dueño de la cuenta.
+Verificarlo con el primer commit automático en *Vercel → Deployments* (o en el commit en GitHub:
+debería tener el check "Vercel"). Si aparece bloqueado, las salidas, en orden de preferencia:
+
+1. **Hacer el repo público** (Settings → General → Danger Zone → Change visibility). No hay
+   secrets en el código y los datos son públicos.
+2. **Commitear con la cuenta del dueño**: crear las variables del repo `GIT_AUTHOR_NAME` y
+   `GIT_AUTHOR_EMAIL` (Settings → Secrets and variables → Actions → *Variables*) y usarlas en
+   `oil.yml` y `sitio.yml` en lugar de `github-actions[bot]`:
+   `git config user.name "${{ vars.GIT_AUTHOR_NAME }}"` y lo mismo con el email. No hardcodear
+   el email en el repo.
+3. **Deploy Hook** (ya implementado, desactivado): en Vercel, *Settings → Git → Deploy Hooks* →
+   crear uno para la rama `main`, y guardar su URL como secret del repo `VERCEL_DEPLOY_HOOK`.
+   Con el secret cargado, `oil.yml` y `sitio.yml` lo llaman después de cada commit; sin el
+   secret, ese paso se saltea.

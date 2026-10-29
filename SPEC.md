@@ -57,7 +57,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
    - **Validación en tres niveles:**
      - **(a) Estructura — falla dura** (exit 1, resumen con `estado: error`): una página no responde (3 intentos), no está la tabla o su encabezado cambió, falta alguno de los 8 productos esperados, aparece un producto desconocido o repetido, o un precio o fecha no se puede convertir.
      - **(b) Plausibilidad — no bloquea; el PR va con etiqueta `revisar`:** precio entre 2.000 y 30.000; múltiplo de 5 (solo diésel y naftas: el GLP por kg es 7.374); Mbarete > Porã y Aratiri > Oikoite > Kape; variación contra el precio anterior menor a ±25 %; precio igual en las dos páginas (control cruzado); vigencia publicada posterior al último registro (`vigencia_vieja`); si no lo es y el histórico tiene otro precio vigente en esa fecha, `conflicto_historico` (caso real: Ecoflex 7.330 "desde 13/08/2024" contra 7.730 del AIP 90150); sin cambio de precio, la vigencia publicada coincide con la fecha en que empezó ese precio en el histórico, si esa fecha está confirmada (`vigencia_discrepante`; caso real: el 28/10/2026 Petropar seguía publicando 24/09 para los diésel ya subidos el 28/10).
-     - **(c) Frescura:** si no hubo una corrida exitosa del scraper en 24 h, aviso (lo controla el workflow, no el script).
+     - **(c) Frescura:** si no hubo una corrida exitosa del scraper en 24 h, aviso (lo controla el workflow, no el script). Además, si el `data.json` publicado en producción (variable `SITIO_URL`) tiene más de 48 h de atraso respecto del de main, issue `deploy-atrasado` (Vercel dejó de desplegar).
 2. `etl/fetch_oil.py`: baja WTI y ULSD de la EIA (API key en secret `EIA_API_KEY`), incremental.
    - Endpoint `/v2/petroleum/pri/spt/data/`, `frequency=daily`, `data[0]=value`, filtro por `facets[series][]`.
    - `RWTC` (WTI Cushing) llega en `$/BBL`; se guarda tal cual (unidad `usd_bbl`) y también ÷42 (unidad `usd_gal`).
@@ -76,6 +76,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   - `scraper-roto`: el scraper falló (estructura) o no hubo corrida exitosa en 24 h.
   - `precio-nuevo`: hubo cambio de precio, con link al PR.
   - `revisar`: se disparó alguna regla de plausibilidad (la misma etiqueta va en el PR si lo hay).
+  - `deploy-atrasado`: el sitio publicado no refleja main desde hace más de 48 h.
   - El HTML capturado se adjunta como artifact del workflow y el issue lleva el link a la corrida.
   - Un issue abierto por etiqueta: si ya hay uno, se comenta en vez de abrir otro.
 

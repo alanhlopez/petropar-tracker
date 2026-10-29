@@ -17,6 +17,8 @@ concurrency:
 jobs:
   oil:
     runs-on: ubuntu-latest
+    env:
+      VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +36,7 @@ jobs:
         run: python -m etl.fetch_oil
 
       - name: Commit si hay datos nuevos
+        id: commit
         run: |
           git add -N data/petroleo.csv
           if git diff --quiet -- data/petroleo.csv; then
@@ -47,3 +50,10 @@ jobs:
           git commit -m "Petróleo: datos EIA al $(date -u +%F)"
           git pull --rebase origin main
           git push origin HEAD:main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # Deploy Hook de Vercel (salida c del README): desactivado hasta que exista el secret.
+      # Los secrets no se pueden usar en if:, por eso pasa por el env del job.
+      - name: Avisar a Vercel (Deploy Hook)
+        if: steps.commit.outputs.pushed == 'true' && env.VERCEL_DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK" > /dev/null
