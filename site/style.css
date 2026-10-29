@@ -98,21 +98,12 @@ legend { font-size: .75rem; color: var(--muted); padding: 0 0 3px; text-transfor
 .seg label:first-of-type span { border-radius: 8px 0 0 8px; margin-left: 0; }
 .seg label:last-of-type span { border-radius: 0 8px 8px 0; }
 .seg input:checked + span { background: var(--text); color: var(--bg); border-color: var(--text); position: relative; }
-.seg input:focus-visible + span, .tab:focus-visible, summary:focus-visible, .chip input:focus-visible + .chip-in {
+.seg input:focus-visible + span, .tab:focus-visible, summary:focus-visible, .chipb:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
 .chips { margin-bottom: 8px; }
 .chips-box { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip input { position: absolute; opacity: 0; pointer-events: none; }
-.chip-in {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
-  border: 1px solid var(--border); border-radius: 999px; font-size: .86rem; cursor: pointer;
-  background: var(--card); user-select: none;
-}
-.chip input:not(:checked) + .chip-in { opacity: .5; text-decoration: line-through; text-decoration-color: var(--faint); }
-.chip input:checked + .chip-in { border-color: var(--text); }
-.sw { display: inline-block; width: 18px; height: 0; border-top: 3px solid; flex: none; vertical-align: middle; }
 
 .aviso { font-size: .86rem; color: var(--muted); margin: 6px 0; padding: 7px 10px; border-left: 3px solid var(--axis); background: var(--card); }
 .aviso:empty { display: none; }
@@ -188,48 +179,63 @@ td a, .ev a { color: var(--accent); }
   td.prod { font-weight: 700; }
 }
 
+/* chips de producto (botones de alternancia) */
+.chipb {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font: inherit; font-size: .86rem; cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted);
+}
+.chipb .sw { opacity: .55; }
+.chipb .chip-ck { visibility: hidden; width: .9em; font-weight: 700; }
+.chipb[aria-pressed="true"] { color: var(--text); border-color: var(--tc); background: var(--card); background: color-mix(in srgb, var(--tc) 14%, var(--card)); }
+.chipb[aria-pressed="true"] .chip-ck { visibility: visible; }
+.chipb[aria-pressed="true"] .sw { opacity: 1; }
+
 /* secciones */
 .seccion { margin-top: 18px; scroll-margin-top: 8px; }
 .seccion > h2 { font-size: 1.35rem; margin: 0 0 4px; }
-.hoy-sub { margin: 0 0 2px; color: var(--muted); }
-.hoy-verif { margin: 0 0 4px; font-size: .86rem; font-weight: 600; }
-.hoy-ir { margin: 0 0 10px; font-size: .9rem; }
-.hoy-ir a { color: var(--accent); }
-.tarjetas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 900px) { .tarjetas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .tarjetas { grid-template-columns: minmax(0, 1fr); } }
-.tarjeta {
-  font: inherit; color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
-  background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--tc, var(--border));
-  border-radius: 10px; padding: 12px 14px; min-width: 0;
-}
-.tarjeta:hover { border-color: var(--text); border-top-color: var(--tc, var(--text)); }
-.tarjeta:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.tarjeta > span { display: block; }
-.t-nombre { font-weight: 700; font-size: 1.05rem; }
-.t-cat { color: var(--muted); font-size: .85rem; }
-.t-precio { font-size: 1.7rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.t-precio small { font-size: .95rem; font-weight: 600; color: var(--muted); }
-.t-nd { font-size: 1.1rem; color: var(--muted); }
-.t-meta { font-size: .8rem; color: var(--muted); }
-.t-pc { align-self: flex-start; font-size: .8rem; font-weight: 700; border: 1px solid var(--text); border-radius: 999px; padding: 1px 8px; }
-.t-cambio { font-size: .88rem; font-weight: 700; }
-.t-cambio.sube { color: var(--sube); }
-.t-cambio.baja { color: var(--baja); }
-.t-neutro, .t-anual { color: var(--muted); font-size: .86rem; font-weight: 400; }
-.t-anual strong { color: var(--text); }
-.t-sp { margin-top: 4px; }
-.t-spark { width: 100%; height: auto; display: block; }
-.t-spark path { stroke-linecap: round; }
-.t-spark-lb, .t-spark-no { font-size: .72rem; color: var(--muted); }
-.t-ir { margin-top: auto; padding-top: 4px; font-size: .8rem; color: var(--accent); }
-.chart .hito-halo { stroke: var(--bg); stroke-width: 5; }
-.t-cab { display: block; }
-.t-cab .t-nombre, .t-cab .t-cat { display: block; }
-
-.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-.hoy-nd { color: var(--muted); margin: 8px 0; }
-.tarjeta > .t-bloque { display: flex; flex-direction: column; gap: 4px; }
-.t-bloque + .t-bloque { border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 4px; }
-.t-rot { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 #h-hist:focus { outline: none; }
+.chart .hito-halo { stroke: var(--bg); stroke-width: 5; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+/* Precios hoy: lista compacta */
+.hoy-verif { font-size: .9rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.hoy-nota { margin: 0 0 8px; font-size: .8rem; color: var(--muted); }
+.hoy-nota a { color: var(--accent); white-space: nowrap; }
+.hoy-nd { color: var(--muted); margin: 8px 0; }
+.lista-hoy { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0 12px; }
+@media (min-width: 1100px) {
+  .lista-hoy { display: grid; grid-auto-flow: column; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(var(--filas, 4), auto); column-gap: 28px; }
+}
+.fila {
+  font: inherit; color: var(--text); text-align: left; cursor: pointer; width: 100%; 
+  background: transparent; border: 0; border-bottom: 1px solid var(--border); padding: 9px 4px; min-width: 0;
+  display: grid; align-items: baseline; column-gap: 10px; row-gap: 1px;
+  grid-template-columns: 12px minmax(0, 1fr) auto 4.2rem minmax(0, auto);
+}
+.fila:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.fila:focus-visible { outline: 3px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.f-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--tc); align-self: center; }
+.f-nom { font-weight: 700; }
+.f-precio { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+.f-precio small { font-weight: 600; color: var(--muted); font-size: .78em; }
+.f-sep { color: var(--muted); font-weight: 400; }
+.f-cambio { font-weight: 700; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.f-cambio.sube { color: var(--sube); }
+.f-cambio.baja { color: var(--baja); }
+.f-meta { font-size: .78rem; color: var(--muted); }
+.f-pc { display: inline-block; font-weight: 700; color: var(--text); border: 1px solid var(--text); border-radius: 999px; padding: 0 7px; font-size: .74rem; white-space: nowrap; }
+@media (max-width: 700px) {
+  .hoy-verif { display: block; margin-top: 2px; }
+  .hoy-verif .vd { display: none; }
+  .fila { grid-template-columns: 12px auto minmax(0, 1fr) auto; grid-template-areas: "d n n p" ". c m m"; row-gap: 0; padding: 7px 2px; }
+  .f-dot { grid-area: d; } .f-nom { grid-area: n; } .f-precio { grid-area: p; } .f-cambio { grid-area: c; } .f-meta { grid-area: m; }
+}
+
+/* tabla de datos completa */
+.tb-filtros { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 8px; font-size: .86rem; }
+.tb-filtros label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+.tb-filtros select { font: inherit; padding: 4px 6px; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; max-width: 100%; }
+.tb-cuenta { color: var(--muted); }
+.tabla-wrap { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.tabla-wrap thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+.tabla-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

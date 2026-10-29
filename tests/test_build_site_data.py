@@ -172,7 +172,7 @@ def test_tarjeta_cambio_desde_el_inicio_de_la_racha_y_variacion_anual():
     [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
     assert t["precio"] == 7500 and t["fecha"] == "2026-08-01"
     assert t["cambio"] == {"desde": "2026-05-01", "precio_anterior": 7000, "fecha_anterior": "2026-02-01",
-                           "tras_hueco": False, "abs": 500, "pct": 7.1}
+                           "tras_hueco": False, "flecha": True, "abs": 500, "pct": 7.1}
     assert t["vigente_desde"] == "2026-05-01" and t["fecha_vigencia_confirmada"]
     assert t["anual"] == {"fecha": "2025-10-28", "precio": 6000, "abs": 1500, "pct": 25.0}
 
@@ -183,6 +183,7 @@ def test_tarjeta_no_compara_a_traves_de_un_hueco():
     [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
     assert t["anual"] is None  # hace un año cae en el hueco: no se arrastra 7.730
     assert t["cambio"]["tras_hueco"] and t["cambio"]["abs"] == -400
+    assert not t["cambio"]["flecha"]
 
 
 def test_tarjeta_sin_historia_previa_ni_datos():
@@ -199,3 +200,29 @@ def test_sin_variacion_anual_si_la_vigencia_de_hace_un_anio_no_esta_confirmada()
     filas = serie(("2025-05-23", 7374), fecha_estado="a_confirmar")
     [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
     assert t["anual"] is None and t["por_confirmar"] and not t["fecha_vigencia_confirmada"]
+
+
+def test_ningun_producto_muestra_flecha_si_el_cambio_cruza_un_hueco():
+    """Contra los datos reales: todo cambio cuyo precio anterior está antes de datos_hasta y el
+    actual después (hueco sin datos entre ambos) va sin flecha."""
+    datos = bs.construir(ahora=AHORA)
+    hasta = {p["id"]: p["datos_hasta"] for p in datos["productos"]}
+    cruzan = 0
+    for t in datos["tarjetas"]:
+        c = t.get("cambio")
+        if not c:
+            continue
+        h = hasta[t["id"]]
+        if h and c["fecha_anterior"] <= h < c["desde"]:
+            cruzan += 1
+            assert c["tras_hueco"] and not c["flecha"], t["id"]
+    assert cruzan >= 1  # hoy Ecoflex 85: 7.730 (2024) -> 7.330 (2026)
+
+
+def test_sin_flecha_si_el_precio_anterior_tiene_mas_de_6_meses():
+    producto = [{"product_id": "x", "unidad": "litro", "datos_hasta": ""}]
+    viejo = serie(("2025-01-10", 7000), ("2025-12-01", 7500))
+    reciente = serie(("2025-08-01", 7000), ("2025-12-01", 7500))
+    [a] = bs.tarjetas_json(producto, {"x": viejo}, datetime(2026, 10, 28).date())
+    [b] = bs.tarjetas_json(producto, {"x": reciente}, datetime(2026, 10, 28).date())
+    assert not a["cambio"]["flecha"] and b["cambio"]["flecha"]

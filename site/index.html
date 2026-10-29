@@ -22,21 +22,20 @@
       <svg class="ic-luna" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
     </button>
   </div>
-  <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales.</p>
-  <p class="frescura" id="frescura" aria-live="polite">Cargando datos…</p>
+  <p class="aviso" id="error-datos" role="alert" hidden></p>
 </header>
 
 <main>
   <section id="hoy" class="seccion" aria-labelledby="h-hoy">
-    <h2 id="h-hoy">Precios hoy</h2>
-    <p class="hoy-sub">Precios vigentes en estaciones Petropar · Planta Villa Elisa (puede variar a más de 50 km)</p>
-    <p class="hoy-verif" id="verif"></p>
-    <p class="hoy-ir"><a href="#historico">Ver evolución histórica &darr;</a></p>
-    <div class="tarjetas" id="tarjetas"></div>
+    <h2 id="h-hoy">Precios Petropar hoy <span class="hoy-verif" id="verif" title="Hora de Asunción"></span></h2>
+    <p class="hoy-nota">Planta Villa Elisa; puede variar a más de 50 km. <a href="#historico">Ver evolución histórica &darr;</a></p>
+    <div class="lista-hoy" id="lista-hoy"><p class="hoy-nd">Cargando datos…</p></div>
   </section>
 
   <section id="historico" class="seccion" aria-labelledby="h-hist">
   <h2 id="h-hist" tabindex="-1">Histórico</h2>
+  <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales.</p>
+  <p class="frescura" id="frescura"></p>
   <div class="tabs" role="tablist" aria-label="Tipo de combustible">
     <button role="tab" id="tab-liq" aria-selected="true" aria-controls="panel-liq" class="tab on">Combustibles líquidos</button>
     <button role="tab" id="tab-glp" aria-selected="false" aria-controls="panel-glp" class="tab">GLP (Ñande Gas)</button>
@@ -78,9 +77,9 @@
   </section>
 
   <section class="bloque">
-    <details open>
-      <summary>Precios vigentes por producto</summary>
-      <div id="tabla-vigentes"></div>
+    <details id="det-tabla">
+      <summary>Ver datos en tabla</summary>
+      <div id="tabla-datos"></div>
     </details>
     <details>
       <summary>Eventos y promociones marcados en el gráfico</summary>

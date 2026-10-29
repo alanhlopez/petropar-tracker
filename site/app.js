@@ -757,105 +757,64 @@
     } catch (e) { return ''; }
   }
   function signo(n) { return n > 0 ? '+' : (n < 0 ? '−' : ''); }
-  // c.pct ya viene redondeado a 1 decimal desde data.json; dec(...,1) solo lo muestra con coma (ej. 20,0)
-  function cambioHtml(c, conf) {
-    if (!c) return '<span class="t-cambio t-neutro">Sin cambios registrados</span>';
-    var cls = c.abs > 0 ? 'sube' : (c.abs < 0 ? 'baja' : 'igual');
-    var flecha = c.abs > 0 ? '\u25B2 ' : (c.abs < 0 ? '\u25BC ' : '');
-    var txt = signo(c.abs) + 'G. ' + miles(Math.abs(c.abs)) + ' (' + signo(c.pct) + dec(Math.abs(c.pct), 1) + '%)';
-    var cola = '';
-    if (c.tras_hueco) cola = ' vs. G. ' + miles(c.precio_anterior) + ', \u00faltimo dato con fuente' + (c.fecha_anterior ? ' (' + fmtIso(c.fecha_anterior) + ')' : '');
-    else if (c.desde && conf) cola = ' desde el ' + fmtIso(c.desde);
-    return '<span class="t-cambio ' + cls + '">' + flecha + esc(txt + cola) + '</span>';
+  // DD/MM; con año de 2 dígitos (DD/MM/AA) si es de otro año que el actual
+  function fechaCorta(d) {
+    var p = String(d).split('-');
+    return p[2] + '/' + p[1] + (p[0] !== HOY.slice(0, 4) ? '/' + p[0].slice(2) : '');
   }
-  function anualHtml(a, conf) {
-    if (!a) return '<span class="t-anual">' + (conf ? 'Sin dato de hace un año' : 'Sin dato confirmado de hace un año') + '</span>';
-    return '<span class="t-anual"><strong>' + signo(a.pct) + dec(Math.abs(a.pct), 1) + '%</strong> vs. hace un año</span>';
-  }
-  function vigenciaHtml(t) {
-    var futuro = t.vigente_desde && t.vigente_desde > HOY, txt;
-    if (!t.fecha_vigencia_confirmada || !t.vigente_desde) {
-      txt = futuro ? 'Precio publicado por Petropar; fecha de vigencia por confirmar' : 'Fecha de vigencia por confirmar';
-    } else {
-      txt = (futuro ? 'Rige desde ' : 'Vigente desde ') + fmtIso(t.vigente_desde);
-    }
-    return '<span class="t-meta">' + esc(txt) + '</span>';
-  }
-  // sparkline de 12 meses: step-after, respeta huecos (cada segmento por separado), sin ejes
-  function sparkHtml(id, color) {
-    var p = PRODS[id];
-    if (!p) return '';
-    var t1 = parse(HOY), t0 = new Date(Date.UTC(t1.getUTCFullYear() - 1, t1.getUTCMonth(), t1.getUTCDate()));
-    var pieces = [];
-    p.segs.forEach(function (sg) {
-      var a = Math.max(+t0, +sg.pts[0].d), b = Math.min(+t1, +sg.end);
-      if (a > b) return;
-      var pts = [], i0 = bisD(sg.pts, new Date(a)) - 1;
-      pts.push({ d: new Date(a), v: sg.pts[Math.max(0, i0)].v, row: sg.pts[Math.max(0, i0)].row });
-      sg.pts.forEach(function (q) { if (+q.d > a && +q.d <= b) pts.push({ d: q.d, v: q.v, row: q.row }); });
-      pts.push({ d: new Date(b), v: pts[pts.length - 1].v, row: pts[pts.length - 1].row });
-      pieces.push(pts);
-    });
-    if (!pieces.length) return '<span class="t-spark-no">Sin datos en 12 meses</span>';
-    var W = 240, Hh = 44, vals = [], todoNoFirme = true;
-    pieces.forEach(function (pc) { pc.forEach(function (q) { vals.push(q.v); if (!q.row || q.row.firme !== false) todoNoFirme = false; }); });
-    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    var xs = d3.scaleUtc().domain([t0, t1]).range([3, W - 5]);
-    var ys = d3.scaleLinear().domain(lo === hi ? [lo - 1, hi + 1] : [lo, hi]).range([Hh - 5, 5]);
-    var ln = d3.line().x(function (q) { return xs(q.d); }).y(function (q) { return ys(q.v); }).curve(d3.curveStepAfter);
-    var h = '<svg class="t-spark" viewBox="0 0 ' + W + ' ' + Hh + '" aria-hidden="true" focusable="false">';
-    pieces.forEach(function (pc) { h += '<path d="' + ln(pc) + '" fill="none" stroke-width="2" stroke-linejoin="round"'
-      + (todoNoFirme ? ' stroke-dasharray="5 4" opacity="0.6"' : '') + ' style="stroke:' + color + '"/>'; });
-    var lp = pieces[pieces.length - 1], q = lp[lp.length - 1];
-    h += '<circle cx="' + xs(q.d) + '" cy="' + ys(q.v) + '" r="2.8" style="fill:' + color + '"/></svg>';
-    return h + '<span class="t-spark-lb">Últimos 12 meses' + (todoNoFirme ? ' \u00b7 fecha por confirmar' : '') + '</span>';
-  }
-  function renderTarjetas() {
-    var box = el('#tarjetas'); if (!box) return;
+  var UNI = { litro: 'L', kg: 'kg' };
+  /* Lista compacta de "Precios hoy": una fila por producto, todo en un solo bloque. Todo viene de data.tarjetas
+     (precio, cambio.flecha, vigente_desde, etc.); acá solo se formatea. GLP: una fila con kg y litro.
+     Orden: el de data.tarjetas. En desktop ancho la lista va en 2 columnas que se llenan por columnas (grid por columnas:
+     primero baja la columna izquierda y después la derecha), así el orden de lectura es el de data.tarjetas. */
+  function renderLista() {
+    var box = el('#lista-hoy'); if (!box) return;
     HOY = hoyAsuncion();
-    if (!(D.tarjetas || []).length) { box.innerHTML = '<p class="hoy-nd">No disponible: este sitio todavía no trae los precios de hoy.</p>'; return; }
-    var T = {}; (D.tarjetas || []).forEach(function (t) { T[t.id] = t; });
-    var cat = {}; (D.productos || []).forEach(function (p) { cat[p.id] = p; });
-    var cards = [], usados = {};
-    (D.tarjetas || []).forEach(function (t) {
-      if (usados[t.id]) return;
-      var m = cat[t.id] || {};
+    var ts = D.tarjetas || [];
+    if (!ts.length) { box.innerHTML = '<p class="hoy-nd">No disponible: este sitio todavía no trae los precios de hoy.</p>'; return; }
+    var T = {}; ts.forEach(function (t) { T[t.id] = t; });
+    var nom = {}; (D.productos || []).forEach(function (p) { nom[p.id] = p.nombre; });
+    var filas = [], visto = {};
+    ts.forEach(function (t) {
+      if (visto[t.id]) return;
       if (t.id === 'glp_kg' || t.id === 'glp_litro') {
-        usados.glp_kg = usados.glp_litro = true;
-        cards.push({ id: 'glp', kg: T.glp_kg, lt: T.glp_litro, main: T.glp_kg || T.glp_litro, nombre: 'Ñande Gas (GLP)', cat: (cat.glp_kg || cat.glp_litro || {}).categoria || 'GLP', spark: 'glp_kg' });
+        visto.glp_kg = visto.glp_litro = true;
+        var its = [T.glp_kg, T.glp_litro].filter(Boolean);
+        filas.push({ id: 'glp', color: cvar('glp_kg'), nombre: 'Ñande Gas', items: its });
       } else {
-        usados[t.id] = true;
-        cards.push({ id: t.id, main: t, nombre: m.nombre || t.id, cat: m.categoria || '', spark: t.id });
+        visto[t.id] = true;
+        filas.push({ id: t.id, color: cvar(t.id), nombre: nom[t.id] || t.id, items: [t] });
       }
     });
-    function bloque(x, rotulo) {
-      if (!x || x.precio == null) return '<span class="t-bloque">' + (rotulo ? '<span class="t-rot">' + esc(rotulo) + '</span>' : '') + '<span class="t-precio t-nd">Sin datos</span></span>';
-      var conf = !!x.fecha_vigencia_confirmada;
-      return '<span class="t-bloque">'
-        + '<span class="t-precio">G. ' + miles(x.precio) + ' <small>/' + esc(x.unidad) + '</small></span>'
-        + vigenciaHtml(x)
-        + (x.por_confirmar ? '<span class="t-pc">\u26A0 por confirmar</span>' : '')
-        + cambioHtml(x.cambio, conf) + anualHtml(x.anual, conf) + '</span>';
-    }
-    box.innerHTML = cards.map(function (c) {
-      var color = c.id === 'glp' ? cvar('glp_kg') : cvar(c.id), t = c.main;
-      var cuerpo, spId = c.spark;
-      if (c.id === 'glp') {
-        cuerpo = bloque(c.kg, 'Por kg') + bloque(c.lt, 'Por litro');
-        if (!(c.kg && c.kg.precio != null)) spId = 'glp_litro';
+    box.innerHTML = filas.map(function (f) {
+      var its = f.items, main = its[0];
+      var precios = its.map(function (x) {
+        return x.precio == null ? 'sin datos' : 'G. ' + miles(x.precio) + '<small> /' + esc(UNI[x.unidad] || x.unidad) + '</small>';
+      }).join('<span class="f-sep"> · </span>');
+      // flecha y monto solo si el cambio existe y cambio.flecha es true (en GLP, en todas las filas con precio)
+      var conFlecha = its.every(function (x) { return x.cambio && x.cambio.flecha; });
+      var cam = '';
+      if (conFlecha) {
+        var c = main.cambio, sube = c.abs > 0;
+        cam = '<span class="f-cambio ' + (sube ? 'sube' : 'baja') + '"><span aria-hidden="true">' + (sube ? '▲' : '▼') + ' </span>'
+          + '<span class="sr-only">' + (sube ? 'subió ' : 'bajó ') + '</span>' + signo(c.abs) + miles(Math.abs(c.abs)) + '</span>';
       } else {
-        cuerpo = bloque(t);
+        cam = '<span class="f-cambio"></span>';
       }
-      var hayPrecio = !!(t && t.precio != null) || !!(c.lt && c.lt.precio != null);
-      return '<button type="button" class="tarjeta" data-id="' + esc(c.id) + '" style="--tc:' + color + '">'
-        + '<span class="t-cab"><span class="t-nombre">' + esc(c.nombre) + '</span><span class="t-cat">' + esc(c.cat) + '</span></span>'
-        + cuerpo
-        + '<span class="t-sp">' + (hayPrecio ? sparkHtml(spId, color) : '') + '</span>'
-        + '<span class="sr-only"> \u2014 ver en el gráfico histórico</span>'
-        + '<span class="t-ir" aria-hidden="true">Ver en el gráfico \u2193</span></button>';
+      var conf = its.every(function (x) { return x.fecha_vigencia_confirmada && x.vigente_desde; });
+      var meta = '';
+      if (conf) meta += (main.vigente_desde > HOY ? 'rige desde ' : 'desde ') + fechaCorta(main.vigente_desde);
+      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? ' ' : '') + '<span class="f-pc">⚠ por confirmar</span>';
+      return '<button type="button" class="fila" data-id="' + esc(f.id) + '" style="--tc:' + f.color + '">'
+        + '<span class="f-dot" aria-hidden="true"></span>'
+        + '<span class="f-nom">' + esc(f.nombre) + '</span>'
+        + '<span class="f-precio">' + precios + '</span>'
+        + cam + '<span class="f-meta">' + meta + '</span>'
+        + '<span class="sr-only"> — ver en el gráfico histórico</span></button>';
     }).join('');
+    box.style.setProperty('--filas', Math.ceil(filas.length / 2));   // 2 columnas en desktop: la izquierda lleva la mitad de arriba
     box.addEventListener('click', function (ev) {
-      var b = ev.target.closest ? ev.target.closest('.tarjeta') : null;
+      var b = ev.target.closest ? ev.target.closest('.fila') : null;
       if (b) irAlGrafico(b.getAttribute('data-id'));
     });
   }
@@ -865,7 +824,7 @@
     } else {
       if (state.tab !== 'liq') el('#tab-liq').click();
       state.sel = new Set([id]);
-      document.querySelectorAll('#ctl-prod input[type=checkbox]').forEach(function (i) { i.checked = state.sel.has(i.value); });
+      syncChips();
       render();
     }
     var sec = document.getElementById('historico'), calmo = false;
@@ -878,7 +837,7 @@
   function verificacion() {
     var v = el('#verif'); if (!v) return;
     var cap = D.ultima_captura ? fmtAsu(D.ultima_captura) : '';
-    v.textContent = cap ? 'Último cambio capturado: ' + cap + ' (hora de Asunción)' : '';
+    v.innerHTML = cap ? '<span class="vd">\u00b7 </span>último cambio capturado ' + esc(cap) : '';
     try {
       var ctl = window.AbortController ? new AbortController() : null;
       var to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
@@ -889,38 +848,66 @@
           clearTimeout(to);
           var t = j && j.workflow_runs && j.workflow_runs[0] && j.workflow_runs[0].updated_at;
           var f = t ? fmtAsu(t) : '';
-          if (f) v.textContent = 'Última verificación: ' + f + ' (hora de Asunción)';
+          if (f) v.innerHTML = '<span class="vd">\u00b7 </span>verificado ' + esc(f);
         })
         .catch(function () { /* queda el texto de respaldo */ });
     } catch (e) { /* queda el texto de respaldo */ }
   }
 
   /* ---------- tabla y eventos ---------- */
-  function renderTabla() {
-    var h = '<table><thead><tr><th>Producto</th><th>Precio</th><th>Vigente desde</th><th>Tipo de precio</th><th>Estado</th><th>Fecha</th><th>Fuente</th></tr></thead><tbody>';
-    (D.productos || []).forEach(function (m) {
-      var p = PRODS[m.id], r = p.rows[p.rows.length - 1];
-      var sw = '<span class="sw" style="border-color:' + cvar(m.id) + '"></span> ';
-      if (!r) {
-        h += '<tr><td class="prod" data-l="Producto">' + sw + esc(m.nombre) + '</td><td colspan="6" data-l="Estado">Sin datos todavía</td></tr>';
-        return;
-      }
-      var uv = (r.urls || []).filter(urlOk);
-      var us = uv.map(function (u, i) {
+  /* Tabla con TODO el histórico de data.precios (≈480 filas). Se arma recién al abrir el desplegable.
+     Filtros: producto y rango de años. Va dentro de un bloque con scroll vertical propio (nunca scroll horizontal de la página). */
+  var TIPO_CORTO = { max_o_sugerido_venta_publico: 'Máx./sugerido', venta_publico: 'Venta al público' };
+  var TABLA = { filas: null, armada: false };
+  function filasTabla() {
+    if (TABLA.filas) return TABLA.filas;
+    var nom = {}, uni = {}, ord = {};
+    (D.productos || []).forEach(function (p, i) { nom[p.id] = p.nombre; uni[p.id] = p.unidad; ord[p.id] = i; });
+    var out = [];
+    Object.keys(D.precios || {}).forEach(function (id) {
+      (D.precios[id] || []).forEach(function (r) { out.push({ id: id, nombre: nom[id] || id, unidad: uni[id] || '', o: ord[id] || 0, r: r }); });
+    });
+    out.sort(function (a, b) { return a.r.fecha < b.r.fecha ? 1 : (a.r.fecha > b.r.fecha ? -1 : a.o - b.o); });
+    TABLA.filas = out;
+    return out;
+  }
+  function pintarTabla() {
+    var fs_ = filasTabla(), pid = el('#tb-prod').value, y0 = +el('#tb-desde').value, y1 = +el('#tb-hasta').value;
+    var sel = fs_.filter(function (f) { var y = +f.r.fecha.slice(0, 4); return (pid === 'todos' || f.id === pid) && y >= y0 && y <= y1; });
+    el('#tb-cuenta').textContent = sel.length + ' de ' + fs_.length + ' filas';
+    el('#tb-cuerpo').innerHTML = sel.map(function (f) {
+      var r = f.r, uv = (r.urls || []).filter(urlOk);
+      var links = uv.map(function (u, i) {
         return '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">enlace' + (uv.length > 1 ? ' ' + (i + 1) : '') + '</a>';
       }).join(' · ');
-      var futuro = r.fecha > iso(new Date());
-      var corte = m.datos_hasta && r.fecha <= m.datos_hasta;
-      h += '<tr><td class="prod" data-l="Producto">' + sw + esc(m.nombre) + '</td>'
-        + '<td class="num" data-l="Precio">' + gs(r.precio) + (m.unidad === 'kg' ? ' / kg' : ' / litro') + '</td>'
-        + '<td class="num" data-l="Vigente desde">' + (futuro ? 'Rige desde ' : '') + fmtIso(r.fecha) + (futuro ? '<br><small>todavía no vigente</small>' : '') + (corte ? '<br><small>último dato; sin precio desde ' + fmtIso(m.datos_hasta) + '</small>' : '') + '</td>'
-        + '<td data-l="Tipo de precio">' + esc(TIPO_TXT[r.tipo_precio] || r.tipo_precio) + '</td>'
-        + '<td data-l="Estado">' + esc(ESTADO_TXT[r.estado] || r.estado) + (r.firme === false ? ' (no firme)' : '') + '</td>'
-        + '<td data-l="Fecha">' + esc(FECHA_ESTADO_TXT[r.fecha_estado] || r.fecha_estado) + '</td>'
-        + '<td data-l="Fuente">' + esc(r.fuente || '') + (us ? ' ' + us : '') + '</td></tr>';
-    });
-    h += '</tbody></table>';
-    el('#tabla-vigentes').innerHTML = h;
+      return '<tr><td class="num" data-l="Fecha">' + fmtIso(r.fecha) + '</td>'
+        + '<td class="prod" data-l="Producto"><span class="sw" style="border-color:' + cvar(f.id) + '"></span> ' + esc(f.nombre) + '</td>'
+        + '<td class="num" data-l="Precio">' + gs(r.precio) + '</td>'
+        + '<td data-l="Unidad">' + esc(f.unidad) + '</td>'
+        + '<td data-l="Tipo de precio">' + esc(TIPO_CORTO[r.tipo_precio] || r.tipo_precio) + '</td>'
+        + '<td data-l="Estado">' + esc(ESTADO_TXT[r.estado] || r.estado) + '</td>'
+        + '<td data-l="Fecha del estado">' + esc(FECHA_ESTADO_TXT[r.fecha_estado] || r.fecha_estado) + '</td>'
+        + '<td data-l="Fuente">' + esc(r.fuente || '') + (links ? ' ' + links : '') + '</td>'
+        + '<td data-l="Nota">' + esc(r.nota || '') + '</td></tr>';
+    }).join('');
+  }
+  function armarTabla() {
+    if (TABLA.armada) return;
+    TABLA.armada = true;
+    var fs_ = filasTabla(), yrs = fs_.map(function (f) { return +f.r.fecha.slice(0, 4); });
+    var ymin = Math.min.apply(null, yrs), ymax = Math.max.apply(null, yrs), op = '', oy0 = '', oy1 = '', y;
+    (D.productos || []).forEach(function (p) { op += '<option value="' + esc(p.id) + '">' + esc(p.nombre) + '</option>'; });
+    for (y = ymin; y <= ymax; y++) { oy0 += '<option value="' + y + '">' + y + '</option>'; oy1 += '<option value="' + y + '">' + y + '</option>'; }
+    el('#tabla-datos').innerHTML = '<div class="tb-filtros">'
+      + '<label>Producto <select id="tb-prod"><option value="todos">Todos</option>' + op + '</select></label>'
+      + '<label>Desde <select id="tb-desde">' + oy0 + '</select></label>'
+      + '<label>Hasta <select id="tb-hasta">' + oy1 + '</select></label>'
+      + '<span id="tb-cuenta" class="tb-cuenta" aria-live="polite"></span></div>'
+      + '<div class="tabla-wrap" tabindex="0" role="region" aria-label="Histórico completo de precios"><table><thead><tr><th>Fecha</th><th>Producto</th><th>Precio</th><th>Unidad</th>'
+      + '<th>Tipo de precio</th><th>Estado</th><th>Fecha del estado</th><th>Fuente</th><th>Nota</th></tr></thead><tbody id="tb-cuerpo"></tbody></table></div>';
+    el('#tb-desde').value = String(ymin); el('#tb-hasta').value = String(ymax);
+    ['#tb-prod', '#tb-desde', '#tb-hasta'].forEach(function (q) { el(q).addEventListener('change', pintarTabla); });
+    pintarTabla();
   }
   function renderEventos() {
     var evs = D.eventos || [];
@@ -935,18 +922,28 @@
   }
 
   /* ---------- controles ---------- */
+  // Chips de producto: botones de alternancia (aria-pressed); activo = relleno suave del color + tilde
   function buildChips() {
     var box = document.createElement('div'); box.className = 'chips-box';
     liquidos().forEach(function (p) {
-      var lb = document.createElement('label'); lb.className = 'chip';
-      lb.innerHTML = '<input type="checkbox" value="' + esc(p.id) + '" checked><span class="chip-in"><span class="sw" style="border-color:' + cvar(p.id) + '"></span>' + esc(p.nombre) + '</span>';
-      box.appendChild(lb);
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'chipb'; b.setAttribute('data-id', p.id); b.setAttribute('aria-pressed', 'true');
+      b.style.setProperty('--tc', cvar(p.id));
+      b.innerHTML = '<span class="chip-ck" aria-hidden="true">\u2713</span><span class="sw" style="border-color:' + cvar(p.id) + '"></span>' + esc(p.nombre);
+      box.appendChild(b);
     });
     el('#ctl-prod').appendChild(box);
-    box.addEventListener('change', function (ev) {
-      var i = ev.target;
-      if (i.checked) state.sel.add(i.value); else state.sel.delete(i.value);
-      render();
+    box.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('.chipb') : null;
+      if (!b) return;
+      var id = b.getAttribute('data-id');
+      if (state.sel.has(id)) state.sel.delete(id); else state.sel.add(id);
+      syncChips(); render();
+    });
+  }
+  function syncChips() {
+    document.querySelectorAll('#ctl-prod .chipb').forEach(function (b) {
+      b.setAttribute('aria-pressed', state.sel.has(b.getAttribute('data-id')) ? 'true' : 'false');
     });
   }
   function wireControls() {
@@ -979,11 +976,10 @@
 
   function textos() {
     var u = D.ultimo_dato || {};
-    var f = 'Datos al ' + fmtIso(u.petropar || '') + ' (precios Petropar)';
     var o = [];
     if (u.wti) o.push('WTI al ' + fmtIso(u.wti));
     if (u.ulsd) o.push('ULSD al ' + fmtIso(u.ulsd));
-    el('#frescura').textContent = f + (o.length ? ' · ' + o.join(', ') : '') + '.';
+    el('#frescura').textContent = o.length ? 'Petróleo (EIA): ' + o.join(', ') + '.' : '';
     if (D.generado) el('#generado').textContent = 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
     var hu = (D.productos || []).filter(function (p) { return p.datos_hasta; }).map(function (p) {
       // si el scraper ya retomó la serie, el hueco tiene fin
@@ -1000,7 +996,10 @@
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderTarjetas(); verificacion(); renderTabla(); renderEventos(); wireControls();
+    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls();
+    var dt = el('#det-tabla');   // la tabla completa se arma solo al abrir (o con ?tabla=1, útil para capturas)
+    dt.addEventListener('toggle', function () { if (dt.open) armarTabla(); });
+    try { if (new URLSearchParams(location.search).get('tabla') === '1') { dt.open = true; armarTabla(); } } catch (e) { /* sin parámetros */ }
     /* Parámetros de URL (para compartir o capturar): ?rango=all|10|5|2 y ?pestana=glp */
     try {
       var qp = new URLSearchParams(location.search), rg = qp.get('rango');
@@ -1018,7 +1017,8 @@
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(init)
     .catch(function (e) {
-      el('#frescura').textContent = 'No se pudieron cargar los datos (' + e.message + '). Probá recargar la página.';
+      var er = el('#error-datos'); er.hidden = false;
+      er.textContent = 'No se pudieron cargar los datos (' + e.message + '). Probá recargar la página.';
       if (window.console) console.error(e);
     });
 })();

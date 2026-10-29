@@ -20,6 +20,8 @@ from zoneinfo import ZoneInfo
 from etl.io_csv import DATA, RAIZ, leer_csv
 
 ASUNCION = ZoneInfo("America/Asuncion")
+# sin flecha de cambio si el precio anterior con fuente es más viejo que esto (o hay un hueco)
+DIAS_MAX_FLECHA = 183
 
 SALIDA = RAIZ / "site" / "data.json"
 
@@ -92,9 +94,12 @@ def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: dat
         anterior = filas[i - 1] if i > 0 else None
         cambio = None
         if anterior:
+            tras_hueco = bool(hasta and anterior["fecha"] <= hasta < filas[i]["fecha"])
+            antiguedad = (date.fromisoformat(filas[i]["fecha"]) - date.fromisoformat(anterior["fecha"])).days
             cambio = {"desde": filas[i]["fecha"], "precio_anterior": anterior["precio"],
-                      "fecha_anterior": anterior["fecha"],
-                      "tras_hueco": bool(hasta and anterior["fecha"] <= hasta < filas[i]["fecha"]),
+                      "fecha_anterior": anterior["fecha"], "tras_hueco": tras_hueco,
+                      # la flecha afirma "cambió de X a Y": solo si X es reciente y no hay hueco entre ambos
+                      "flecha": not tras_hueco and antiguedad <= DIAS_MAX_FLECHA,
                       **variacion(actual["precio"], anterior["precio"])}
         dia = hace_un_anio(hoy).isoformat()
         previo = precio_vigente_en(filas, dia, hasta)
