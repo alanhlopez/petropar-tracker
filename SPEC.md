@@ -139,7 +139,10 @@ El sitio se publica como **CombusPy** (proyecto de Vercel `combuspy-tracker`, ht
 Mantener `site/` organizado para sumar secciones sin romper la URL actual.
 
 ### Estructura del sitio
-- **Portada "Precios hoy"**: precios actuales de Petropar y de los emblemas privados por categoría
+- **Portada de privados: "Últimos cambios reportados"** (decidido el 29/10/2026, ver relevamiento: ningún emblema
+  publica precios en un canal propio legible). Cada precio con su fecha de vigencia y la nota de prensa; nunca
+  se presenta como "precio de hoy". Petropar sigue con "Precios hoy".
+- **Portada "Precios hoy"** (solo si un emblema llega a tener fuente sostenible): precios actuales de Petropar y de los emblemas privados por categoría
   (diésel común, diésel premium, nafta 88–90, nafta 93–95, nafta 97+).
   - Filtro por marca y por categoría.
   - Desktop: tabla marca × categoría. Móvil: tarjetas.

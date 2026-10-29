@@ -28,8 +28,8 @@ automática: ni web con precios, ni app con precios, ni PDF. La prensa (sobre to
 fechas de vigencia) publica tablas por marca solo en algunas tandas y casi siempre de Shell, Copetrol y
 Petrobras. Puma y Petromax aparecen sobre todo con montos de suba, no con precios.
 
-Con esto, la portada de privados encaja mejor como **"últimos cambios reportados"** (precio, fecha de
-vigencia y nota de prensa de cada uno, atenuado si es viejo) que como "precios hoy". La decisión es tuya.
+**Decisión (29/10/2026):** la portada de privados muestra **"últimos cambios reportados"** (precio, fecha de
+vigencia y nota de prensa de cada uno, atenuado si es viejo), no "precios hoy".
 
 ## Selección y presencia en Gran Asunción
 
@@ -208,8 +208,10 @@ El CSV tiene solo lo que la fuente respalda (octanaje, ppm o "tipo I/III" dichos
 Quedan **fuera, por inferidas** (la categoría sale solo del orden de precios): Shell Regular, Super,
 V-Power Nafta y Evolux; Petrobras Nafta Grid, Diésel Euro 5 y Prix 90; las naftas de Puma y Petromax.
 Copetrol Go S50 y Élite S10 entran porque la categoría sale del nombre (S50 / S10 = ppm de azufre), lo que
-también es inferencia; están marcadas en la columna fuente. Quantum 98 E10 (Copetrol): falta decidir si va en
-"nafta 97+" o aparte.
+también es inferencia; están marcadas en la columna fuente. Quantum 98 E10 (Copetrol) va en "Nafta 97+"
+(decisión del 29/10/2026): la categoría es por octanaje y el nombre dice 98. No se encontró ficha técnica
+pública de Copetrol; ABC 03/11/2023 solo la describe como "nafta con aditivos". Si aparece una ficha que
+diga otra cosa, se revisa.
 
 ## Pendientes
 
