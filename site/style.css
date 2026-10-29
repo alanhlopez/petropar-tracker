@@ -333,23 +333,39 @@ td a, .ev a { color: var(--link); }
 .arrastrando, .arrastrando * { cursor: grabbing !important; user-select: none; }
 
 .nav-t { margin-top: var(--s3); }
-.nav-mini { position: relative; height: 60px; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--bg); touch-action: pan-y; cursor: pointer; }
+.nav-mini { position: relative; height: 76px; touch-action: pan-y; cursor: pointer; }
+.nav-mini::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 60px; border: 1px solid var(--rule); border-radius: 6px; pointer-events: none; }
+.nav-mini .nav-tick { stroke: var(--axis); }
 .nav-mini svg { display: block; }
 .nav-mini .nav-anio { fill: var(--faint); font-size: 10px; font-family: inherit; }
 .nav-mini .nav-rot { fill: var(--muted); font-size: 10.5px; font-weight: 600; font-family: inherit; }
-.nav-sombra { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: color-mix(in srgb, var(--text) 9%, transparent); pointer-events: none; }
+.nav-sombra { position: absolute; top: 0; height: 60px; left: 0; width: 0; background: color-mix(in srgb, var(--text) 9%, transparent); pointer-events: none; }
 .nav-ventana {
-  position: absolute; top: 0; bottom: 0; left: 0; width: 100%; cursor: grab; touch-action: none;
+  position: absolute; top: 0; height: 60px; left: 0; width: 100%; cursor: grab; touch-action: none;
   border: 1.5px solid var(--muted); border-radius: 4px; background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 .nav-ventana:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.nav-h { position: absolute; top: 50%; width: 12px; height: 28px; margin-top: -14px; cursor: ew-resize; touch-action: none;
-  background: var(--card); border: 1px solid var(--muted); border-radius: 3px; }
-.nav-h::after { content: ""; position: absolute; left: 4px; right: 4px; top: 8px; bottom: 8px; border-left: 1px solid var(--muted); border-right: 1px solid var(--muted); }
-.nav-h-a { left: -7px; } .nav-h-b { right: -7px; }
+/* manijas de 8 px con contraste (tinta del tema sobre el fondo), con área táctil más ancha */
+.nav-h { position: absolute; top: 50%; width: 8px; height: 30px; margin-top: -15px; cursor: ew-resize; touch-action: none;
+  background: var(--text); border: 1.5px solid var(--bg); border-radius: 3px; box-sizing: content-box; }
+.nav-h::before { content: ""; position: absolute; left: -8px; right: -8px; top: -6px; bottom: -6px; }
+.nav-h-a { left: -6px; } .nav-h-b { right: -6px; }
 .nav-fechas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s3); margin-top: var(--s2); font-size: .82rem; color: var(--muted); }
 .nav-fechas label { display: inline-flex; align-items: center; gap: 6px; }
 .nav-fechas input { font: inherit; font-size: .82rem; padding: 2px 6px; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
 .nav-ayuda { flex: 1 1 260px; font-size: .75rem; color: var(--faint); }
-@media (hover: none), (max-width: 600px) { .nav-solo-desk { display: none; } }
 .modo-og .nav-t { display: none !important; }
+
+/* Tooltip compacto: una línea con producto y precio, otra chica con fecha y vigencia */
+.tt-c { padding: 6px 10px; max-width: min(280px, calc(100% - 8px)); }
+.tt-l1 { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: .82rem; }
+.tt-l2 { font-size: .74rem; color: var(--faint); margin-top: 2px; }
+.tt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; margin-right: 6px; vertical-align: middle; }
+.tt-l1 .tt-dot { margin-right: 0; }
+.tt-ver { margin-top: 6px; font: inherit; font-size: .78rem; font-weight: 600; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.tt-det { max-width: min(300px, calc(100% - 8px)); padding-right: 26px; }
+.tt-det h3 { display: flex; align-items: center; }
+.chart .lbl-fecha { fill: var(--muted); font-weight: 700; }
+.finales .fin-fecha { flex-basis: 100%; font-weight: 700; color: var(--muted); font-size: .78rem; }
+.chart svg:focus { outline: none; }
+.chart svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -626,13 +626,15 @@
         var tx = sw.append('text').attr('x', 18).attr('y', 0).attr('dy', '0.34em').attr('font-size', fs)
           .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v');
         tx.append('tspan').text((s.kind === 'oil' ? s.short : s.name) + ' ');
-        tx.append('tspan').attr('font-weight', 700).text(valTxt(s, it.v));
-        if (it.varia) {
-          tx.append('tspan').attr('class', 'lbl-sep').text(' · ');
-          tx.append('tspan').attr('class', 'lbl-var ' + it.varia.cls).text(it.varia.txt);
-        }
+        // referencias para las etiquetas dinámicas (valor en la fecha del cursor)
+        it.valT = tx.append('tspan').attr('font-weight', 700).text(valTxt(s, it.v));
+        it.sepT = tx.append('tspan').attr('class', 'lbl-sep').text(it.varia ? ' · ' : '');
+        it.varT = tx.append('tspan').attr('class', 'lbl-var ' + (it.varia ? it.varia.cls : '')).text(it.varia ? it.varia.txt : '');
       });
     }
+    // fecha de la columna de etiquetas mientras el cursor está sobre el gráfico
+    var fechaCol = mobile ? null : g.append('text').attr('class', 'lbl-fecha').attr('x', lx).attr('y', band - 6)
+      .attr('font-size', fs - 0.5).style('display', 'none');
     fin.forEach(function (it) {
       // marcador discreto del corte (el texto "dato hasta" está en tabla, nota y tooltip)
       g.append('line').attr('x1', it.x).attr('x2', it.x).attr('y1', it.y - 7).attr('y2', it.y + 7).style('stroke', it.s.color).attr('stroke-width', 2.5);
@@ -644,141 +646,218 @@
       var items = lab.slice().sort(function (a, b) { return a.y0 - b.y0; }).map(function (it) {
         return { s: it.s, txt: valTxt(it.s, it.v), varia: it.varia };
       }).concat(fin.map(function (it) { return { s: it.s, txt: 'dato hasta ' + fmtD(it.end) }; }));
-      fb.innerHTML = items.map(function (it) {
-        return '<li><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
+      fb.innerHTML = '<li class="fin-fecha" hidden></li>' + items.map(function (it) {
+        return '<li data-sid="' + esc(it.s.id) + '"><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
           + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong>'
-          + (it.varia ? ' <span class="var-p ' + it.varia.cls + '">' + esc(it.varia.txt) + '</span>' : '') + '</li>';
+          + ' <span class="var-p ' + (it.varia ? it.varia.cls : '') + '">' + (it.varia ? esc(it.varia.txt) : '') + '</span></li>';
       }).join('');
       host.appendChild(fb);
+      lab.forEach(function (it) {
+        var li = fb.querySelector('li[data-sid="' + it.s.id + '"]');
+        if (li) { it.liVal = li.querySelector('strong'); it.liVar = li.querySelector('.var-p'); }
+      });
+      var liFecha = fb.querySelector('.fin-fecha');
     }
 
     // interacción
     var guia = g.append('line').attr('class', 'guia').attr('y1', 0).attr('y2', ih).style('display', 'none');
-    var foco = g.append('circle').attr('r', 6).attr('fill', 'none').attr('stroke-width', 2).style('display', 'none');
+    var foco = g.append('circle').attr('r', 5).attr('fill', 'none').attr('stroke-width', 2).style('display', 'none');
     var tip = document.createElement('div');
     tip.className = 'tt'; tip.hidden = true;
+    tip.setAttribute('role', 'dialog');
     host.appendChild(tip);
     var st = charts[hostId] = charts[hostId] || {};
     st.pinned = false;
 
-    function inspect(px, py) {
-      var t = x.invert(px);
-      var cand = [];
-      lista.forEach(function (s) {
-        var p = pointAt(s, t);
-        if (!p) {   // filas aisladas (tramo de un solo día): se "pegan" si el cursor está a pocos px
-          s.segs.forEach(function (sg) {
-            if (sg.pts.length === 1 && +sg.end === +sg.pts[0].d && Math.abs(x(sg.pts[0].d) - px) <= 8) p = sg.pts[0];
-          });
-        }
-        if (p) cand.push({ s: s, p: p, y: yOf(s, p.v) });
-      });
+    /* Línea más cercana al cursor (precio o petróleo) en la fecha t. Devuelve {s, p, y, fecha} o null. */
+    function cercana(t, py) {
       var best = null;
-      cand.forEach(function (c) { var dd = Math.abs(c.y - py); if (!best || dd < best.dd) { best = c; best.dd = dd; } });
-      var h = '<h3>' + esc(fmtD(t)) + '</h3>';
-      if (best) {
-        var r = best.p.row, s = best.s;
-        h += '<div><span class="sw" style="border-color:' + s.color + '"></span> <strong>' + esc(s.name) + ': ' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong>'
-          + (index ? ' <span class="f">(índice ' + dec(tr(s, r.precio), 1) + ')</span>' : '') + '</div>';
-        h += '<div><span class="f">Vigente desde:</span> ' + fmtIso(r.fecha) + '</div>';
-        h += '<div><span class="f">Tipo de precio:</span> ' + esc(TIPO_TXT[r.tipo_precio] || r.tipo_precio) + '</div>';
-        h += '<div><span class="f">Estado:</span> ' + esc(ESTADO_TXT[r.estado] || r.estado)
-          + ' · <span class="f">fecha:</span> ' + esc(FECHA_ESTADO_TXT[r.fecha_estado] || r.fecha_estado)
-          + (r.firme === false ? ' <span class="nofirme">no firme</span>' : '') + '</div>';
-        if (r.fuente) h += '<div><span class="f">Fuente:</span> ' + esc(r.fuente) + '</div>';
-        var us = (r.urls || []).filter(urlOk);
-        if (us.length) {
-          h += '<div>' + us.map(function (u, i) {
-            return '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">Enlace a la fuente' + (us.length > 1 ? ' ' + (i + 1) : '') + '</a>';
-          }).join(' · ') + '</div>';
-        }
-        if (r.nota) h += '<div class="f">' + esc(r.nota) + '</div>';
-        if (cand.length > 1) {
-          h += '<div class="sep"><span class="f">Otros productos ese día:</span></div>';
-          cand.forEach(function (c) {
-            if (c === best) return;
-            h += '<div><span class="sw" style="border-color:' + c.s.color + ';width:12px"></span> ' + esc(c.s.name) + ': ' + gs(c.p.v)
-              + (index ? ' <span class="f">(' + dec(tr(c.s, c.p.v), 1) + ')</span>' : '') + '</div>';
+      all.forEach(function (s) {
+        if (activas.indexOf(s) < 0) return;
+        var p = null;
+        if (s.kind === 'oil') {
+          var pts = s.segs[0].pts, i = d3.bisector(function (q) { return q.d; }).left(pts, t);
+          var a1 = pts[Math.max(0, i - 1)], a2 = pts[Math.min(pts.length - 1, i)];
+          p = s.diario && a2 && Math.abs(a2.d - t) < Math.abs(a1.d - t) ? a2 : (s.diario ? a1 : ptLE(pts, t));
+        } else {
+          p = pointAt(s, t);
+          if (!p) s.segs.forEach(function (sg) {   // filas aisladas: se "pegan" si el cursor está a pocos px
+            if (sg.pts.length === 1 && +sg.end === +sg.pts[0].d && Math.abs(x(sg.pts[0].d) - x(t)) <= 8) p = sg.pts[0];
           });
         }
-        st.foco = { x: x(best.p.d), y: best.y, color: best.s.color };
+        if (!p || !isFinite(tr(s, p.v))) return;
+        var yy = yOf(s, p.v), dd = Math.abs(yy - py);
+        if (!best || dd < best.dd) best = { s: s, p: p, y: yy, dd: dd };
+      });
+      return best;
+    }
+    function fechaPetroleo(s, p) {
+      return s.diario ? fmtIso(p.iso || iso(p.d)) : 'promedio ' + MESES[p.d.getUTCMonth()] + ' ' + p.d.getUTCFullYear();
+    }
+    // Tooltip compacto: una línea con producto y precio; otra, chica, con la fecha del cursor y la vigencia
+    function htmlCompacto(c, t, conLink) {
+      var s = c.s, h = '<div class="tt-l1"><span class="tt-dot" style="background:' + s.color + '"></span>';
+      if (s.kind === 'oil') {
+        h += esc(s.short) + ' · <strong>US$ ' + dec(c.p.v, 2) + '/gal</strong></div>'
+          + '<div class="tt-l2">' + esc(fechaPetroleo(s, c.p)) + '</div>';
       } else {
-        h += '<div class="f">Sin precio vigente de los productos elegidos en esta fecha.</div>';
-        st.foco = null;
+        var r = c.p.row;
+        h += esc(s.name) + ' · <strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong>'
+          + (index ? ' <span class="tt-l2">(índice ' + dec(tr(s, r.precio), 1) + ')</span>' : '') + '</div>'
+          + '<div class="tt-l2">' + fmtD(t) + ' · vigente desde ' + fmtIso(r.fecha)
+          + (r.firme === false ? ' · <span class="nofirme">por confirmar</span>' : '') + '</div>';
       }
-      lista.forEach(function (s) {
-        var hg = gapAt(s, t);
-        if (hg && !hg.b) h += '<div class="sep"><span class="sw" style="border-color:' + s.color + ';width:12px"></span> <strong>' + esc(s.name)
-          + '</strong>: sin datos desde ' + fmtD(hg.a) + '.</div>';
-        else if (hg) h += '<div class="sep"><span class="sw" style="border-color:' + s.color + ';width:12px"></span> <strong>' + esc(s.name)
-          + '</strong>: sin datos entre ' + fmtD(hg.a) + ' y ' + fmtD(hg.b) + '. <span class="f">No se estima ni se arrastra el último precio.</span></div>';
-      });
-      if (tramoVis && t >= TRAMO.a && t < TRAMO.b) {
-        h += '<div class="sep f">Entre ' + fmtD(TRAMO.a) + ' y ' + fmtD(TRAMO.b)
-          + ' el dato es el precio máximo y/o sugerido, no el precio de venta al público.</div>';
+      if (conLink) h += '<button type="button" class="tt-ver">Ver detalle</button>';
+      return h;
+    }
+    // Panel de detalle (click, Enter o "Ver detalle"): un solo panel abierto, cerrable con ✕ o Esc
+    function htmlDetalle(c, t) {
+      var s = c.s, h = '<button type="button" class="x" aria-label="Cerrar detalle">&times;</button>';
+      if (s.kind === 'oil') {
+        var mp = OIL[s.key].mensual, mm = ptLE(mp, c.p.d);
+        h += '<h3><span class="tt-dot" style="background:' + s.color + '"></span>' + esc(s.name) + '</h3>'
+          + '<div><strong>US$ ' + dec(c.p.v, 2) + '/gal</strong> <span class="f">(' + esc(fechaPetroleo(s, c.p)) + ')</span></div>'
+          + (mm && s.diario ? '<div><span class="f">Promedio de ' + MESES[mm.d.getUTCMonth()] + ' ' + mm.d.getUTCFullYear() + ':</span> US$ ' + dec(mm.v, 2) + '/gal</div>' : '')
+          + '<div><span class="f">Fuente:</span> <a href="https://www.eia.gov/" target="_blank" rel="noopener noreferrer">U.S. Energy Information Administration (EIA)</a></div>';
+        return h;
       }
+      var r = c.p.row, rows = s.rows, k = rows.indexOf(r), sig = k >= 0 ? rows[k + 1] : null;
+      var hg = (s.gaps || []).filter(function (q) { return q.aIso >= r.fecha && (!sig || q.aIso < sig.fecha); })[0];
+      var hasta = hg ? 'sin datos desde ' + fmtIso(hg.aIso) : (sig ? fmtIso(sig.fecha) : 'hoy (sigue vigente)');
+      h += '<h3><span class="tt-dot" style="background:' + s.color + '"></span>' + esc(s.name) + '</h3>'
+        + '<div><strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : ' por litro') + '</strong></div>'
+        + '<div><span class="f">Vigente:</span> desde ' + fmtIso(r.fecha) + ' hasta ' + hasta + '</div>'
+        + '<div><span class="f">Tipo de precio:</span> ' + esc(TIPO_TXT[r.tipo_precio] || r.tipo_precio) + '</div>'
+        + '<div><span class="f">Estado:</span> ' + esc(ESTADO_TXT[r.estado] || r.estado) + ' · <span class="f">fecha</span> '
+        + esc(FECHA_ESTADO_TXT[r.fecha_estado] || r.fecha_estado) + (r.firme === false ? ' · <span class="nofirme">por confirmar</span>' : '') + '</div>';
+      var us = (r.urls || []).filter(urlOk);
+      if (r.fuente || us.length) {
+        h += '<div><span class="f">Fuente:</span> ' + (us.length
+          ? us.map(function (u, i) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">' + esc(i ? 'enlace ' + (i + 1) : (r.fuente || 'enlace')) + '</a>'; }).join(' · ')
+          : esc(r.fuente)) + '</div>';
+      }
+      if (r.nota) h += '<div class="f">' + esc(r.nota) + '</div>';
       if (showOil && OIL[o.oil.key]) {
-        var od = OIL[o.oil.key].diario, i = d3.bisector(function (q) { return q.d; }).left(od, t);
-        var c1 = od[Math.max(0, i - 1)], c2 = od[Math.min(od.length - 1, i)], c = c1 || c2;
-        if (c1 && c2 && Math.abs(c2.d - t) < Math.abs(c1.d - t)) c = c2;
-        var mp = o.oil.segs[0].pts, mi = bisD(mp, t) - 1, mm = mp[Math.max(0, mi)];
-        if (c) {
-          h += '<div class="sep"><span class="sw" style="border-color:var(--oil);border-top-style:dotted"></span> <strong>' + esc(o.oil.name) + '</strong>: US$ ' + dec(c.v, 2) + '/gal'
-            + ' <span class="f">(diario, ' + fmtIso(c.iso) + ')</span>'
-            + (mm ? '<br><span class="f">Promedio mensual (' + MESES[mm.d.getUTCMonth()] + ' ' + mm.d.getUTCFullYear() + '):</span> US$ ' + dec(mm.v, 2) + '/gal' : '') + '</div>';
-        }
+        var mm2 = ptLE(OIL[o.oil.key].mensual, t);
+        if (mm2) h += '<div class="sep"><span class="f">' + esc(o.oil.name) + ', promedio de ' + MESES[mm2.d.getUTCMonth()] + ' ' + mm2.d.getUTCFullYear()
+          + ':</span> US$ ' + dec(mm2.v, 2) + '/gal</div>';
       }
-      // eventos cercanos
-      var near = evs.filter(function (v) {
-        var x1 = x(v.a), x2 = v.b ? x(v.b) : x1;
-        return px >= x1 - 6 && px <= x2 + 6;
-      });
-      near.forEach(function (v) {
-        var e = v.e;
-        h += '<div class="sep"><strong>' + (e.tipo === 'promo' ? 'Promoción: ' : 'Hito: ') + esc(e.etiqueta) + '</strong><br><span class="f">'
-          + fmtIso(e.fecha) + (e.fecha_fin ? ' al ' + fmtIso(e.fecha_fin) : '') + '</span>'
-          + (e.fuente ? '<br><span class="f">Fuente:</span> ' + esc(e.fuente) : '')
-          + (urlOk(e.url) ? ' <a href="' + esc(e.url) + '" target="_blank" rel="noopener noreferrer">enlace</a>' : '')
-          + (e.nota ? '<br><span class="f">' + esc(e.nota) + '</span>' : '') + '</div>';
-      });
-      return { html: h, t: t };
+      return h;
     }
 
-    function mostrar(px, py, fijar) {
-      var r = inspect(px, py);
-      tip.innerHTML = (fijar ? '<button class="x" aria-label="Cerrar">&times;</button>' : '') + r.html;
-      tip.hidden = false;
-      tip.classList.toggle('fijo', !!fijar);
-      var tw = tip.offsetWidth, th = tip.offsetHeight;
-      var left = m.left + px + 14;
-      if (left + tw > W - 2) left = m.left + px - tw - 14;
-      if (left < 2) left = Math.max(2, Math.min(W - tw - 2, 2));
-      var top = Math.max(2, Math.min(H - th - 2, m.top + py - th / 2));
-      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    // Etiquetas finales dinámicas: valor de cada serie en la fecha del cursor (con la fecha arriba de la columna)
+    function etiquetasEn(t) {
+      lab.forEach(function (it) {
+        var s = it.s, p = s.kind === 'oil' ? ptLE(s.segs[0].pts, t) : pointAt(s, t);
+        var txt = p && isFinite(tr(s, p.v)) ? valTxt(s, tr(s, p.v)) : '—';
+        if (it.valT) { it.valT.text(txt); it.sepT.text(''); it.varT.text(''); }
+        if (it.liVal) { it.liVal.textContent = txt; it.liVar.textContent = ''; }
+      });
+      if (fechaCol) fechaCol.style('display', null).text(fmtD(t));
+      if (liFecha) { liFecha.hidden = false; liFecha.textContent = 'Valores al ' + fmtD(t); }
+    }
+    function etiquetasFin() {
+      lab.forEach(function (it) {
+        var txt = valTxt(it.s, it.v);
+        if (it.valT) { it.valT.text(txt); it.sepT.text(it.varia ? ' · ' : ''); it.varT.text(it.varia ? it.varia.txt : ''); }
+        if (it.liVal) { it.liVal.textContent = txt; it.liVar.textContent = it.varia ? it.varia.txt : ''; }
+      });
+      if (fechaCol) fechaCol.style('display', 'none');
+      if (liFecha) liFecha.hidden = true;
+    }
+
+    /* Ubica el cuadro pegado al punto, siempre dentro del área de datos [0, iw] (así nunca tapa las etiquetas
+       finales, que están a la derecha de iw, ni sale del gráfico): a la derecha del punto, o a la izquierda si no entra;
+       arriba del punto, o abajo si no entra. */
+    function ubicar(px, py) {
+      var tw = tip.offsetWidth, th = tip.offsetHeight, gapP = 12;
+      var minL = m.left + 2, maxR = m.left + iw - 2;
+      var left = m.left + px + gapP;
+      if (left + tw > maxR) left = m.left + px - gapP - tw;
+      if (left < minL) left = Math.max(minL, Math.min(maxR - tw, m.left + px - tw / 2));
+      var top = m.top + py - th - gapP;
+      if (top < m.top - 4) top = m.top + py + gapP;
+      if (top + th > m.top + ih + 4) top = Math.max(2, m.top + ih + 4 - th);
+      tip.style.left = Math.round(left) + 'px'; tip.style.top = Math.round(top) + 'px';
+    }
+    var actual = null;   // {c, t, px} del último punto mostrado
+    var porTeclado = false;   // el foco pasa al ✕ solo si el panel se abrió con teclado
+    function mostrar(px, py, modo) {   // modo: 'compacto' | 'fijo' (compacto fijo con "Ver detalle") | 'detalle'
+      var t = x.invert(px), c = cercana(t, py);
       guia.style('display', null).attr('x1', px).attr('x2', px);
-      if (st.foco) foco.style('display', null).attr('cx', st.foco.x).attr('cy', st.foco.y).style('stroke', st.foco.color);
-      else foco.style('display', 'none');
-      var b = tip.querySelector('.x');
-      if (b) b.addEventListener('click', function (ev) { ev.stopPropagation(); ocultar(true); });
+      etiquetasEn(t);
+      if (!c) { tip.hidden = true; foco.style('display', 'none'); actual = null; return; }
+      actual = { c: c, t: t, px: px };
+      tip.className = 'tt' + (modo === 'detalle' ? ' tt-det fijo' : ' tt-c' + (modo === 'fijo' ? ' fijo' : ''));
+      tip.innerHTML = modo === 'detalle' ? htmlDetalle(c, t) : htmlCompacto(c, t, modo === 'fijo');
+      tip.hidden = false;
+      var fx = x(c.p.d) < 0 ? px : px;   // el foco va sobre la línea, en la fecha del cursor
+      foco.style('display', null).attr('cx', fx).attr('cy', c.y).style('stroke', c.s.color);
+      ubicar(fx, c.y);
+      var bx = tip.querySelector('.x'); if (bx) { bx.addEventListener('click', function (ev) { ev.stopPropagation(); ocultar(true); }); }
+      var bv = tip.querySelector('.tt-ver');
+      if (bv) bv.addEventListener('click', function (ev) { ev.stopPropagation(); fijar(px, py, 'detalle'); });
+      if (modo === 'detalle' && bx && porTeclado) bx.focus({ preventScroll: true });
+      porTeclado = false;
+    }
+    function fijar(px, py, modo) {
+      Object.keys(charts).forEach(function (k) { if (k !== hostId && charts[k].esc) charts[k].esc(); });   // un solo panel
+      st.pinned = true; mostrar(px, py, modo);
     }
     function ocultar(force) {
       if (st.pinned && !force) return;
-      st.pinned = false; tip.hidden = true; tip.classList.remove('fijo');
+      st.pinned = false; tip.hidden = true; actual = null;
       guia.style('display', 'none'); foco.style('display', 'none');
+      etiquetasFin();
     }
     var ov = g.append('rect').attr('class', 'ov').attr('width', iw).attr('height', ih).attr('fill', 'transparent').style('cursor', 'crosshair');
     st.geom = { left: m.left, iw: iw, xmin: xmin, xmax: xmax };   // para arrastre y zoom (wireZoom)
     function loc(ev) { var r = ov.node().getBoundingClientRect(); return [Math.max(0, Math.min(iw, ev.clientX - r.left)), Math.max(0, Math.min(ih, ev.clientY - r.top))]; }
+    var ultimoTipo = 'mouse';
+    ov.on('pointerdown', function (ev) { ultimoTipo = ev.pointerType || 'mouse'; });
     ov.on('pointermove', function (ev) {
       if (st.pinned || ev.pointerType === 'touch') return;
-      var p = loc(ev); mostrar(p[0], p[1], false);
+      var p = loc(ev); mostrar(p[0], p[1], 'compacto');
     });
     ov.on('pointerleave', function (ev) { if (ev.pointerType !== 'touch') ocultar(false); });
     ov.on('click', function (ev) {
       if (Date.now() - ARRASTRE.fin < 250) return;   // fue un arrastre, no un click
-      var p = loc(ev); st.pinned = true; mostrar(p[0], p[1], true);
+      var p = loc(ev);
+      // mouse: panel de detalle; táctil: tooltip compacto fijo con "Ver detalle"
+      fijar(p[0], p[1], ultimoTipo === 'touch' ? 'fijo' : 'detalle');
     });
-    svg.on('keydown', null);
+    // teclado: el gráfico es enfocable; ←/→ recorren las fechas, ↑/↓ cambian de línea, Enter abre el detalle, Esc cierra
+    svg.attr('tabindex', 0).attr('aria-keyshortcuts', 'ArrowLeft ArrowRight ArrowUp ArrowDown Enter Escape')
+      .attr('aria-label', (o.aria || 'Gráfico de precios') + '. Con teclado: flechas izquierda y derecha recorren las fechas, arriba y abajo cambian de línea, Enter abre el detalle.');
+    var kb = { px: iw, idx: 0 };
+    function kbMostrar(modo) {
+      var t = x.invert(kb.px), cands = all.filter(function (s) { return activas.indexOf(s) >= 0; });
+      if (!cands.length) return;
+      kb.idx = (kb.idx + cands.length) % cands.length;
+      var s = cands[kb.idx], p = s.kind === 'oil' ? ptLE(s.segs[0].pts, t) : pointAt(s, t);
+      var py = p ? yOf(s, p.v) : ih / 2;
+      if (modo === 'detalle') fijar(kb.px, py, 'detalle'); else { st.pinned = false; mostrar(kb.px, py, 'compacto'); }
+    }
+    svg.on('keydown', function (ev) {
+      var k = ev.key, paso = Math.max(1, iw / 60);
+      if (k === 'ArrowLeft' || k === 'ArrowRight') { kb.px = Math.max(0, Math.min(iw, kb.px + (k === 'ArrowLeft' ? -paso : paso))); kbMostrar('compacto'); }
+      else if (k === 'ArrowUp' || k === 'ArrowDown') { kb.idx += k === 'ArrowUp' ? -1 : 1; kbMostrar('compacto'); }
+      else if (k === 'Enter' || k === ' ') { porTeclado = true; kbMostrar('detalle'); }
+      else return;
+      ev.preventDefault();
+    });
+    svg.on('focus', function () { if (!st.pinned) kbMostrar('compacto'); });
+    svg.on('blur', function () { setTimeout(function () { if (!st.pinned && !host.contains(document.activeElement)) ocultar(false); }, 0); });
+    // táctil: tocar afuera del gráfico y del cuadro lo cierra
+    if (!st.tapAfuera) {
+      st.tapAfuera = true;
+      document.addEventListener('pointerdown', function (ev) {
+        var cs = charts[hostId];
+        if (!cs || !cs.pinned || !cs.esc) return;
+        var h = document.getElementById(hostId);
+        if (h && !h.contains(ev.target)) cs.esc();
+      });
+    }
     st.esc = function () { ocultar(true); };
 
     // leyenda
@@ -1150,10 +1229,11 @@
       NAV.w = W; NAV.id = id;
       NAV.x = d3.scaleUtc().domain([XMIN_ALL, XMAX]).range([0, W]);
       var old = box.querySelector('svg'); if (old) old.remove();
-      var svg = d3.select(box).insert('svg', ':first-child').attr('width', W).attr('height', H).attr('aria-hidden', 'true');
+      // minigráfico arriba (H - 16 px) y años debajo, fuera del área de la línea
+      var svg = d3.select(box).insert('svg', ':first-child').attr('width', W).attr('height', H + 16).attr('aria-hidden', 'true');
       if (s) {
         var lo = d3.min(s.rows, function (r) { return r.precio; }), hi = d3.max(s.rows, function (r) { return r.precio; });
-        var y = d3.scaleLinear().domain([lo * 0.95, hi * 1.03]).range([H - 4, 4]);
+        var y = d3.scaleLinear().domain([lo * 0.95, hi * 1.03]).range([H - 3, 16]);
         s.segs.forEach(function (sg) {
           var pts = sg.pts.concat([{ d: sg.end, v: sg.pts[sg.pts.length - 1].v }]);
           var ar = d3.area().x(function (p) { return NAV.x(p.d); }).y0(H).y1(function (p) { return y(p.v); }).curve(d3.curveStepAfter);
@@ -1164,7 +1244,8 @@
         svg.append('text').attr('class', 'nav-rot').attr('x', 6).attr('y', 14).text(s.name);
       }
       d3.utcYear.every(W < 500 ? 4 : 2).range(XMIN_ALL, XMAX).forEach(function (d) {
-        svg.append('text').attr('class', 'nav-anio').attr('x', NAV.x(d) + 3).attr('y', H - 5).text(d.getUTCFullYear());
+        svg.append('line').attr('class', 'nav-tick').attr('x1', NAV.x(d)).attr('x2', NAV.x(d)).attr('y1', H).attr('y2', H + 4);
+        svg.append('text').attr('class', 'nav-anio').attr('x', NAV.x(d)).attr('y', H + 14).attr('text-anchor', 'middle').text(d.getUTCFullYear());
       });
     }
     navPosicion();
