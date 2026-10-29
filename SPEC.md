@@ -82,7 +82,11 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 
 ## Sitio (Vercel, estático)
 - Una página, sin backend. Lee `data.json`.
-- Gráfico de líneas escalonadas (precios administrados) + petróleo en línea de puntos (promedio mensual; el tooltip muestra el valor diario del día más cercano).
+- Gráfico de líneas escalonadas (precios administrados) + petróleo en línea de puntos gris medio (claro `#52514e`, oscuro `#9a998f`; trazo fino para no dominar sobre los combustibles; promedio mensual; el tooltip muestra el valor diario del día más cercano). Etiqueta final del petróleo con unidad ("WTI US$ 2,41/gal").
+- Huecos: nunca arrastrar un precio a través de un período sin fuente. El hueco (desde `datos_hasta` hasta la fila siguiente) se dibuja sin línea, con marcadores en el último punto conocido y en el primero posterior, y tooltip "sin datos entre X e Y".
+- Tramo 2009–2014 (`tipo_precio = max_o_sugerido_venta_publico`, rango derivado de los datos): trama sutil de fondo con la etiqueta "Precio máximo/sugerido"; explicado en tooltip y nota metodológica.
+- Hitos en color neutro (tinta secundaria), con etiquetas en una franja superior reservada que no se superpone a los datos. Promos: banda con trama entre inicio y fin; sin fin, marcador ▲ sobre el eje X.
+- Leyenda inferior solo con la clave de símbolos (punto no firme, borde de hueco, hito, promo, precio máximo/sugerido, sombreado presidencial); productos y petróleo se identifican por chips y etiquetas finales (en móvil, bloque debajo del gráfico).
 - Sombreado por presidente (5 mandatos desde Lugo), líneas verticales de eventos (pandemia) y marcas de promociones (`tipo = promo`, solo `mostrar = true`; con `fecha_fin` como franja), distinguibles de los hitos.
 - GLP (kg y litro) NO va en el eje de los combustibles líquidos: otro producto, otra unidad y otra escala. Va en un gráfico chico aparte o en una pestaña.
 - Selector de vista: (a) doble eje Gs / US$ por galón, (b) índice base 100.
@@ -98,13 +102,13 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   | Aratiri 97 | `#1baf7a` | `#199e70` |
   | Oikoite 93 | `#eda100` | `#c98500` |
   | Kape 88 | `#e87ba4` | `#d55181` |
-  | Ecoflex 85 | `#008300` | `#008300` |
+  | Ecoflex 85 | `#6250d6` | `#9085e9` |
 
-  Validada con el validador de daltonismo (pares adyacentes, el criterio para líneas): pasa en claro (fondo `#fcfcfb`) y oscuro (`#1a1a19`).
-  En claro, Aratiri, Oikoite y Kape quedan bajo 3:1 de contraste con el fondo → obligatorio etiqueta directa al final de cada línea + leyenda + tabla.
-  Considerando todos los pares, Porã (naranja) y Ecoflex (verde) se confunden con protanopía (ΔE 3,2) → no depender solo del color: etiquetas directas y tooltip con nombre.
+  Validada con el validador de daltonismo (pares adyacentes en el orden de dibujo, el criterio para líneas): pasa en claro (fondo `#fcfcfb`; peor CVD ΔE 9,1, visión normal 19,6) y oscuro (`#1a1a19`; peor CVD ΔE 8,4, visión normal 19,3). Ecoflex pasó del verde al violeta (slot 7) en oct-2026.
+  En claro, Aratiri (2,74), Oikoite (2,11) y Kape (2,62) quedan bajo 3:1 de contraste con el fondo → etiquetas, tooltips y chips con texto en tinta del tema y muestra de color al lado, más la tabla. En oscuro, todos ≥ 3:1.
+  Nunca depender solo del color: etiquetas directas y tooltip con nombre.
 - Nota metodológica: nominal vs real, escalas independientes en doble eje, huecos conocidos, fuentes (oficial AIP 90150 hasta 2024, prensa desde 2025), cambio de tipo_precio (2009–2014 precio máximo y/o sugerido; desde 2015 precio de venta al público) y productos que aparecen después del inicio (Mbarete 2011, Oikoite y Ecoflex 2015).
-- Responsive (se va a compartir en celular), español, tema claro/oscuro.
+- Responsive (se va a compartir en celular), español. Tema claro por defecto (fondo `#fcfcfb`, texto `#0b0b0b`), sin seguir la preferencia del sistema; botón sol/luna para oscuro, recordado en localStorage (con try/catch); `?tema=oscuro` fuerza oscuro en esa visita. Toda exportación a imagen sale en tema claro.
 - Referencia visual: `data/referencia_grafico.png`.
 
 ## Definición de terminado
@@ -118,10 +122,27 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Fuentes: tipo de cambio PYG/USD (BCP, diario) e IPC (INE, mensual).
 - Vistas del sitio: (c) Gs constantes (IPC), (d) US$ por litro.
 
-## v2: comparación con emblemas privados
-El sitio se publica como **CombusPy** (proyecto de Vercel `combuspy-tracker`, https://combuspy-tracker.vercel.app). Cuando entren los emblemas privados, este gráfico de Petropar pasa a ser una sección "Histórico" del sitio; mantener `site/` organizado para sumar secciones sin romper la URL actual.
+## v2: emblemas privados (CombusPy)
+No implementar todavía. Primero el relevamiento de fuentes: `data/reports/relevamiento_emblemas.md`.
 
-Por categoría de producto (diésel común / diésel premium, nafta 88–90, nafta 93–95, nafta 97+): un producto por vista y varios emblemas en el mismo gráfico. No implementar todavía.
+El sitio se publica como **CombusPy** (proyecto de Vercel `combuspy-tracker`, https://combuspy-tracker.vercel.app).
+Mantener `site/` organizado para sumar secciones sin romper la URL actual.
+
+### Estructura del sitio
+- **Portada "Precios hoy"**: precios actuales de Petropar y de los emblemas privados por categoría
+  (diésel común, diésel premium, nafta 88–90, nafta 93–95, nafta 97+).
+  - Filtro por marca y por categoría.
+  - Desktop: tabla marca × categoría. Móvil: tarjetas.
+  - Resaltar el más barato de cada categoría.
+  - Cada precio muestra "verificado el DD/MM" y la fuente; si tiene más de 7 días, se ve atenuado y con aviso.
+- **Sección "Histórico"**: el gráfico actual de Petropar, más un selector Petropar / privados. En modo privados
+  muestra **una categoría a la vez** con varias marcas (nunca todas las combinaciones juntas).
+- Nombres de marca en texto; **no usar logos**.
+- Precio de referencia: lista en **Gran Asunción**. Aclararlo en la página (en el interior puede variar).
+
+### Datos
+- `data/equivalencias.csv`: producto_marca → categoría, con fuente (marca, producto, categoria, fuente, fuente_url).
+- Mismas reglas que Petropar: nunca inventar ni completar precios; sin fuente va `a_confirmar`; histórico de solo agregar.
 
 ## Fuera de alcance (por ahora)
 - Precios de emblemas privados (ver v2).

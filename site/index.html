@@ -3,14 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light" id="meta-cs">
+<script>
+/* Tema: claro por defecto, sin seguir prefers-color-scheme. Se aplica antes del primer pintado para evitar parpadeo.
+   ?tema=oscuro|claro fuerza el tema en esa visita; si no, se usa lo guardado en localStorage (try/catch: si falla, claro). */
+(function(){var t="light";try{var q=new URLSearchParams(location.search).get("tema");if(q==="oscuro"||q==="claro"){t=q==="oscuro"?"dark":"light";}else if(localStorage.getItem("tema")==="oscuro"){t="dark";}}catch(e){}document.documentElement.setAttribute("data-theme",t);var mc=document.getElementById("meta-cs");if(mc)mc.setAttribute("content",t);})();
+</script>
 <title>Precios de combustibles de Petropar vs. petróleo</title>
 <meta name="description" content="Serie histórica de precios de surtidor de Petropar (desde 2009) comparada con el petróleo internacional y los períodos presidenciales.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="cab">
-  <h1>Precios de combustibles de Petropar y precio del petróleo</h1>
+  <div class="cab-fila">
+    <h1>Precios de combustibles de Petropar y precio del petróleo</h1>
+    <button type="button" id="btn-tema" class="btn-tema" aria-label="Tema oscuro" aria-pressed="false" title="Cambiar entre tema claro y oscuro">
+      <svg class="ic-sol" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>
+      <svg class="ic-luna" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
+    </button>
+  </div>
   <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales.</p>
   <p class="frescura" id="frescura" aria-live="polite">Cargando datos…</p>
 </header>
@@ -73,12 +84,12 @@
       <li><strong>Escalas independientes.</strong> En la vista de doble eje, el eje izquierdo (Gs por litro) y el derecho (US$ por galón) tienen escalas independientes. La altura relativa de una línea de combustible y la del petróleo no es comparable: solo importa cuándo suben y bajan.</li>
       <li><strong>Índice base 100.</strong> Pone todas las series visibles en la misma escala relativa. La base es la primera fecha del período elegido en la que ya existen todas las series visibles; en esa fecha cada serie vale 100 (se marca en el gráfico). Cambiar el período, los productos o la serie internacional cambia la base.</li>
       <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA (WTI Cushing en US$ por barril dividido 42, o diésel ULSD de la Costa del Golfo, en US$ por galón). Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
-      <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta en la última fecha con dato y no se extrapola. <span id="nota-huecos"></span></li>
+      <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo en el último punto conocido y otro en el primero posterior (relleno si es firme, hueco si no); al pasar el cursor por el hueco el cuadro emergente indica entre qué fechas no hay datos. <span id="nota-huecos"></span></li>
       <li><strong>Fuentes.</strong> Hasta 2024: respuesta oficial de Petropar a la solicitud de información pública N° 90150 (17/03/2025). Desde 2025: prensa y planilla propia, y luego la página oficial de Petropar. Cada precio indica su fuente en el cuadro emergente.</li>
-      <li><strong>Cambio de tipo de precio.</strong> De 2009 a 2014 el dato es el "precio máximo y/o sugerido de venta al público"; desde 2015 es el "precio de venta al público". No son exactamente lo mismo, aunque en 2015 las dos páginas del documento oficial coinciden.</li>
+      <li><strong>Cambio de tipo de precio.</strong> De 2009 a 2014 el dato es el "precio máximo y/o sugerido de venta al público"; desde 2015 es el "precio de venta al público". No son exactamente lo mismo, aunque en 2015 las dos páginas del documento oficial coinciden. En el gráfico, ese primer tramo va con fondo de trama fina y el rótulo "Precio máximo/sugerido" (el rango sale de los datos: desde el primer precio de ese tipo hasta la primera fila de venta al público), y el cuadro emergente aclara de qué tipo es cada precio.</li>
       <li><strong>Productos que aparecen después.</strong> La serie empieza en 2009, pero Diésel Mbarete aparece en 2011 y Oikoite 93 y Ecoflex 85 en 2015. Nunca se extrapola un producto hacia atrás de su primera fecha.</li>
       <li><strong>Puntos no firmes.</strong> Un precio es "firme" solo si su estado es "verificado" y la fecha de vigencia está confirmada. Los demás se marcan con un círculo hueco.</li>
-      <li><strong>Promociones.</strong> Las bajas temporales que no figuran en el documento oficial se muestran como franjas rayadas, aparte de la serie principal.</li>
+      <li><strong>Promociones.</strong> Las bajas temporales que no figuran en el documento oficial se muestran como franjas con trama diagonal entre la fecha de inicio y la de fin; si no tienen fecha de fin, como un triángulo (▲) sobre el eje horizontal. Los hitos son líneas verticales punteadas con su rótulo en la franja superior del gráfico.</li>
     </ul>
   </section>
 </main>

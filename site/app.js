@@ -10,7 +10,10 @@
   };
   var PRES_CORTO = { 'Fernando Lugo': 'Lugo', 'Federico Franco': 'Franco', 'Horacio Cartes': 'Cartes', 'Mario Abdo Benítez': 'Abdo', 'Santiago Peña': 'Peña' };
   var OIL_NOMBRE = { wti: 'WTI', ulsd: 'Diésel ULSD' };
-  var TIPO_TXT = { max_o_sugerido_venta_publico: 'Máximo y/o sugerido de venta al público', venta_publico: 'Venta al público' };
+  var TIPO_TXT = {
+    max_o_sugerido_venta_publico: 'Precio máximo y/o sugerido de venta al público (referencia, no necesariamente el precio efectivo de surtidor)',
+    venta_publico: 'Venta al público'
+  };
   var ESTADO_TXT = { verificado: 'verificado', derivado: 'derivado', planilla: 'planilla', a_confirmar: 'a confirmar' };
   var FECHA_ESTADO_TXT = { confirmada: 'confirmada', a_confirmar: 'a confirmar' };
 
@@ -20,6 +23,32 @@
   var PRODS = {};        // id -> {meta, segs}
   var OIL = {};          // wti|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
   var XMIN_ALL, XMAX;
+  var TRAMO = null;      // {a, b}: tramo con tipo_precio = max_o_sugerido_venta_publico (derivado de los datos)
+
+  /* ---------- tema ----------
+     El tema se fija con data-theme en <html> (script inline en index.html, antes del primer pintado).
+     Claro por defecto; no sigue prefers-color-scheme. Se recuerda en localStorage (siempre en try/catch).
+     ?tema=oscuro | ?tema=claro fuerza el tema solo para esa visita (útil para capturas).
+     IMPORTANTE: si algún día se agrega exportar/descargar imagen del gráfico, la exportación debe
+     forzar el tema claro (fondo #fcfcfb, tinta oscura), sin importar el tema activo en pantalla. */
+  function temaActual() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'oscuro' : 'claro'; }
+  function metaCS() {
+    var mt = document.getElementById('meta-cs');
+    if (mt) mt.setAttribute('content', temaActual() === 'oscuro' ? 'dark' : 'light');
+  }
+  function initTema() {
+    var b = document.getElementById('btn-tema');
+    if (!b) return;
+    function sync() { b.setAttribute('aria-pressed', temaActual() === 'oscuro' ? 'true' : 'false'); }
+    sync(); metaCS();
+    b.addEventListener('click', function () {
+      var nuevo = temaActual() === 'oscuro' ? 'claro' : 'oscuro';
+      document.documentElement.setAttribute('data-theme', nuevo === 'oscuro' ? 'dark' : 'light');
+      try { localStorage.setItem('tema', nuevo); } catch (e) { /* sin almacenamiento: vale solo esta visita */ }
+      sync(); metaCS();
+      if (D) render();
+    });
+  }
 
   /* ---------- utilidades ---------- */
   function esc(s) {
@@ -62,14 +91,27 @@
     XMIN_ALL = parse(minRow && minRow < '2009-01-02' ? minRow : '2009-01-01');
     if (minRow && minRow > '2009-01-01') XMIN_ALL = parse(minRow);
 
+    // tramo de precio máximo/sugerido: primera y última fecha con ese tipo, hasta la primera fila de venta al público
+    var mxA = '', vpA = '';
+    Object.keys(PRODS).forEach(function (id) {
+      PRODS[id].rows.forEach(function (r) {
+        if (r.tipo_precio === 'max_o_sugerido_venta_publico' && (!mxA || r.fecha < mxA)) mxA = r.fecha;
+        if (r.tipo_precio === 'venta_publico' && (!vpA || r.fecha < vpA)) vpA = r.fecha;
+      });
+    });
+    TRAMO = mxA ? { a: parse(mxA), b: parse(vpA || finIso), aIso: mxA, bIso: vpA } : null;
+
     Object.keys(PRODS).forEach(function (id) {
       var p = PRODS[id], cut = p.meta.datos_hasta;
+      p.gaps = [];
       function mk(rows) { return rows.map(function (r) { return { d: parse(r.fecha), v: r.precio, row: r }; }); }
       if (cut) {
         var A = p.rows.filter(function (r) { return r.fecha <= cut; });
         var B = p.rows.filter(function (r) { return r.fecha > cut; });
         if (A.length) p.segs.push({ pts: mk(A), end: parse(cut) });
         if (B.length) p.segs.push({ pts: mk(B), end: XMAX });
+        // hueco sin fuente: nunca se arrastra el precio; va de datos_hasta a la primera fila posterior
+        if (A.length && B.length) p.gaps.push({ a: parse(cut), b: parse(B[0].fecha), aIso: cut, bIso: B[0].fecha });
       } else if (p.rows.length) {
         p.segs.push({ pts: mk(p.rows), end: XMAX });
       }
@@ -88,14 +130,22 @@
   function seriesPrice(id) {
     var p = PRODS[id];
     if (!p || !p.segs.length) return null;
-    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs };
+    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs, gaps: p.gaps,
+      hasMax: p.rows.some(function (r) { return r.tipo_precio === 'max_o_sugerido_venta_publico'; }) };
   }
   function seriesOil(k) {
     var o = OIL[k];
     if (!o || !o.mensual.length) return null;
     var last = o.mensual[o.mensual.length - 1].d;
     return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'wti' ? 'WTI' : 'ULSD', color: 'var(--oil)',
-      segs: [{ pts: o.mensual, end: last }] };
+      segs: [{ pts: o.mensual, end: last }], gaps: [] };
+  }
+  function gapAt(s, t) {
+    var gs_ = s.gaps || [];
+    for (var i = 0; i < gs_.length; i++) if (t > gs_[i].a && t < gs_[i].b) return gs_[i];
+    var last = s.segs[s.segs.length - 1];
+    if (s.kind === 'price' && XMAX - last.end > 864e5 * 2 && t > last.end) return { a: last.end, b: null };
+    return null;
   }
   function firstD(s) { return s.segs[0].pts[0].d; }
   function lastEnd(s) { return s.segs[s.segs.length - 1].end; }
@@ -183,15 +233,21 @@
       if (xmin < XMIN_ALL) xmin = XMIN_ALL;
     }
 
+    if (o.xDesdeDatos && lista.length) {   // p. ej. GLP: el eje arranca en su primer dato (con margen de 60 días)
+      xmin = new Date(+d3.min(lista, firstD) - 60 * 864e5);
+    }
+
     // layout
     var dualAx = showOil && !index;
     var axisR = dualAx && !mobile ? 58 : 0;   // en móvil los ticks US$ van por dentro del área
-    var labW = mobile ? 50 : 178;
-    var m = { top: 48, left: mobile ? 41 : 64, bottom: 26, right: axisR + labW + 4 };
+    var labW = mobile ? 0 : 178;      // en móvil las etiquetas finales van en un bloque debajo del gráfico
+    var m = { top: 48, left: mobile ? 41 : 64, bottom: 26, right: axisR + (mobile ? 8 : labW + 4) };
     var H = o.altura || (mobile ? 420 : Math.max(440, Math.min(560, Math.round(W * 0.5))));
     var iw = W - m.left - m.right, ih = H - m.top - m.bottom;
     var fs = mobile ? 10.5 : 12;
     var x = d3.scaleUtc().domain([xmin, xmax]).range([0, iw]);
+    var fs2 = fs + 3;
+    var band = 2 * fs2 + 8;           // franja superior reservada (hitos, rótulo de tramo); los datos no entran
 
     // índice: base
     var base = null, baseVals = {};
@@ -217,7 +273,7 @@
       });
       if (!isFinite(lo)) { lo = 50; hi = 150; }
       lo = Math.min(lo, 100) * 0.92; hi = Math.max(hi, 100) * 1.05;
-      yL = d3.scaleLinear().domain([lo, hi]).range([ih, 0]).nice(5);
+      yL = d3.scaleLinear().domain([lo, hi]).range([ih, band]).nice(5);
       ticksL = yL.ticks(5);
     } else {
       var mx = yMaxVisible(priceAct, xmin, xmax) || 12000;
@@ -225,12 +281,12 @@
       for (var ci = 0; ci < cs.length; ci++) { if (Math.ceil(raw / cs[ci]) <= 6) { step = cs[ci]; break; } }
       var n = Math.max(1, Math.ceil(raw / step));
       ticksL = d3.range(0, n + 1).map(function (i) { return i * step; });
-      yL = d3.scaleLinear().domain([0, step * n]).range([ih, 0]);
+      yL = d3.scaleLinear().domain([0, step * n]).range([ih, band]);
       if (dualAx) {
         var oilAct = activas.indexOf(o.oil) >= 0;
         var om = oilAct ? yMaxVisible([o.oil], xmin, xmax) : 3;
         var rs = niceOilStep((om || 3) * 1.05, n);
-        yR = d3.scaleLinear().domain([0, rs * n]).range([ih, 0]);
+        yR = d3.scaleLinear().domain([0, rs * n]).range([ih, band]);
         ticksR = d3.range(0, n + 1).map(function (i) { return i * rs; });
         decR = rs % 1 === 0 ? 0 : (Math.abs(rs * 10 - Math.round(rs * 10)) < 1e-9 ? 1 : 2);
       }
@@ -246,19 +302,24 @@
     var pat = defs.append('pattern').attr('id', uid + 'p').attr('width', 6).attr('height', 6)
       .attr('patternUnits', 'userSpaceOnUse').attr('patternTransform', 'rotate(45)');
     pat.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 6).style('stroke', 'var(--promo)').attr('stroke-width', 2.5);
+    var pat2 = defs.append('pattern').attr('id', uid + 'm').attr('width', 7).attr('height', 7)
+      .attr('patternUnits', 'userSpaceOnUse').attr('patternTransform', 'rotate(-45)');
+    pat2.append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 7).style('stroke', 'var(--muted)').attr('stroke-width', 1);
     var g = svg.append('g').attr('transform', 'translate(' + m.left + ',' + m.top + ')');
 
     // sombreado presidentes
     var gp = g.append('g').attr('clip-path', 'url(#' + uid + ')');
+    var presVis = [];
     (D.presidentes || []).forEach(function (pr, i) {
       var a = parse(pr.inicio), b = pr.fin ? parse(pr.fin) : xmax;
       var a2 = a < xmin ? xmin : a, b2 = b > xmax ? xmax : b;
       if (b2 <= a2) return;
+      presVis.push(pr);
       gp.append('rect').attr('x', x(a2)).attr('width', Math.max(0, x(b2) - x(a2))).attr('y', 0).attr('height', ih)
         .style('fill', i % 2 ? 'var(--shade-b)' : 'var(--shade-a)');
       var w = x(b2) - x(a2);
       var t = g.append('text').attr('class', 'pres').attr('text-anchor', 'middle').attr('x', (x(a2) + x(b2)) / 2).attr('y', -28)
-        .attr('font-size', mobile ? 10 : 11.5).text(pr.nombre);
+        .attr('font-size', mobile ? 10 : 11.5).text(mobile ? (PRES_CORTO[pr.nombre] || pr.nombre) : pr.nombre);
       try {
         if (t.node().getComputedTextLength() > w - 4) {
           t.text(PRES_CORTO[pr.nombre] || pr.nombre);
@@ -266,6 +327,18 @@
         }
       } catch (e) { /* sin medición */ }
     });
+
+    // tramo 2009-2014: precio máximo y/o sugerido (trama sutil + rótulo en la franja superior)
+    var tramoVis = !!(TRAMO && TRAMO.b > xmin && TRAMO.a < xmax && lista.some(function (s) { return s.hasMax; }));
+    if (tramoVis) {
+      var ta = Math.max(0, x(TRAMO.a)), tb = Math.min(iw, x(TRAMO.b));
+      gp.append('rect').attr('x', ta).attr('width', Math.max(0, tb - ta)).attr('y', 0).attr('height', ih)
+        .style('fill', 'url(#' + uid + 'm)').attr('opacity', 0.22);
+      gp.append('line').attr('x1', tb).attr('x2', tb).attr('y1', band).attr('y2', ih).style('stroke', 'var(--muted)')
+        .attr('stroke-width', 1).attr('opacity', 0.35);
+      g.append('text').attr('class', 'halo tramo-t').attr('x', ta + 4).attr('y', fs + 1).attr('font-size', mobile ? 10 : 11)
+        .text('Precio máximo/sugerido');
+    }
 
     // grilla y ejes
     g.append('g').attr('class', 'grid').selectAll('line').data(ticksL).join('line')
@@ -292,8 +365,7 @@
       .text(index ? 'Índice (base 100)' : (o.ejeL || 'Gs por litro'));
     if (dualAx) {
       if (mobile) {
-        g.append('g').selectAll('text').data(ticksR.filter(function (v) { return yR(v) > 14; })).join('text').attr('class', 'halo').attr('x', iw - 3).attr('y', function (v) { return yR(v) - 3; })
-          .attr('text-anchor', 'end').attr('font-size', fs - 1).text(function (v) { return dec(v, decR); });
+        /* ticks US$ en móvil: se dibujan después de las líneas (con halo) */
       } else {
         g.append('g').attr('class', 'axis').attr('transform', 'translate(' + iw + ',0)')
           .call(d3.axisRight(yR).tickValues(ticksR).tickFormat(function (v) { return 'US$ ' + dec(v, decR); }).tickSize(0).tickPadding(6))
@@ -308,20 +380,45 @@
     var evs = (D.eventos || []).map(function (e) {
       return { e: e, a: parse(e.fecha), b: e.fecha_fin ? parse(e.fecha_fin) : null };
     }).filter(function (v) { return v.a && (v.b || v.a) >= xmin && v.a <= xmax; });
-    evs.filter(function (v) { return v.e.tipo === 'promo'; }).forEach(function (v) {
-      var x1 = x(v.a), x2 = v.b ? x(v.b) : x1, w = Math.max(3, x2 - x1);
-      gc.append('rect').attr('x', x1 - (w > x2 - x1 ? (w - (x2 - x1)) / 2 : 0)).attr('width', w).attr('y', 0).attr('height', ih)
-        .style('fill', 'url(#' + uid + 'p)').attr('opacity', 0.45);
-      gc.append('path').attr('d', 'M' + (x1 + w / 2 - 5) + ',' + ih + 'l5,-8l5,8z').style('fill', 'var(--promo)');
+    // promos: banda con trama si hay fecha_fin posterior a fecha; si no, marcador ▲ sobre el eje X.
+    // Solo en combustibles líquidos (o.sinPromos en GLP). Van debajo de la franja reservada para hitos.
+    // Si una promo queda a menos de ~6 px de un hito, la promo ocupa la mitad inferior y la línea del hito se corta
+    // donde empieza la promo, para que no se fundan.
+    var hitosV = evs.filter(function (v) { return v.e.tipo !== 'promo'; });
+    var promosV = o.sinPromos ? [] : evs.filter(function (v) { return v.e.tipo === 'promo'; });
+    var hitoFin = hitosV.map(function () { return ih; });
+    var mid = band + (ih - band) / 2, hayBanda = false, hayTri = false;
+    promosV.forEach(function (v) {
+      var x1 = x(v.a), span = v.b && v.b > v.a, x2 = span ? x(v.b) : x1;
+      var w = span ? Math.max(6, x2 - x1) : 11, xa = (x1 + x2) / 2 - w / 2, xb = xa + w;
+      var col = false;
+      hitosV.forEach(function (h, k) {
+        var hx = x(h.a);
+        if (hx >= xa - 6 && hx <= xb + 6) { col = true; hitoFin[k] = Math.min(hitoFin[k], span ? mid : ih - 14); }
+      });
+      if (span) {
+        hayBanda = true;
+        var y0 = col ? mid : band;
+        gc.append('rect').attr('x', xa).attr('width', w).attr('y', y0).attr('height', ih - y0)
+          .style('fill', 'url(#' + uid + 'p)').attr('opacity', 0.7);
+        gc.append('rect').attr('x', xa).attr('width', w).attr('y', y0).attr('height', ih - y0)
+          .attr('fill', 'none').style('stroke', 'var(--promo)').attr('stroke-width', 1.2);
+      } else {
+        hayTri = true;
+        gc.append('path').attr('d', 'M' + (x1 - 5.5) + ',' + ih + 'l5.5,-9l5.5,9z').style('fill', 'var(--promo)')
+          .style('stroke', 'var(--bg)').attr('stroke-width', 1);
+      }
     });
-    var hi = 0;
-    evs.filter(function (v) { return v.e.tipo !== 'promo'; }).forEach(function (v) {
+    // hitos: líneas desde debajo de la franja superior (así no cruzan ninguna etiqueta) y rótulos con halo en la franja
+    hitosV.forEach(function (v, k) {
       var xx = x(v.a);
-      g.append('line').attr('class', 'hito-l').attr('x1', xx).attr('x2', xx).attr('y1', 0).attr('y2', ih);
+      g.append('line').attr('class', 'hito-l').attr('x1', xx).attr('x2', xx).attr('y1', band).attr('y2', hitoFin[k]);
+    });
+    hitosV.forEach(function (v, k) {
+      var xx = x(v.a);
       var txt = mobile ? v.e.etiqueta.replace(/\s*\(.*?\)/g, '') : v.e.etiqueta;
-      var tt = g.append('text').attr('class', 'hito-t halo').attr('y', 13 + (hi++ % 2) * (fs + 3))
+      var tt = g.append('text').attr('class', 'hito-t halo').attr('y', fs + 1 + (k % 2) * fs2)
         .attr('font-size', mobile ? 10 : 11).text(txt);
-      tt.style('fill', 'var(--hito)');
       var tl = 0; try { tl = tt.node().getComputedTextLength(); } catch (e) { tl = txt.length * 6; }
       var spR = iw - xx - 5, spL = xx - 5, right = tl <= spR ? false : (tl <= spL ? true : spL > spR);
       var sp = right ? spL : spR;
@@ -350,20 +447,47 @@
         var path = gl.append('path').attr('d', ln(pts)).attr('fill', 'none').style('stroke', s.color)
           .attr('stroke-linejoin', 'round');
         if (s.kind === 'oil') {
-          path.attr('stroke-width', mobile ? 3 : 4).attr('stroke-linecap', 'round').attr('stroke-dasharray', mobile ? '0.1 6' : '0.1 7.5');
+          path.attr('stroke-width', mobile ? 2 : 2.4).attr('stroke-linecap', 'round').attr('stroke-dasharray', mobile ? '0.1 4.5' : '0.1 5.5');
         } else {
           path.attr('stroke-width', mobile ? 2 : 2.4);
         }
       });
     });
-    // puntos no firmes
+    // ticks US$ del eje derecho en móvil: después de las líneas, con halo
+    if (dualAx && mobile) {
+      g.append('g').selectAll('text').data(ticksR.filter(function (v) { return yR(v) > band + 10; })).join('text').attr('class', 'halo')
+        .attr('x', iw - 3).attr('y', function (v) { return yR(v) - 3; })
+        .attr('text-anchor', 'end').attr('font-size', fs - 1).text(function (v) { return dec(v, decR); });
+    }
+
+    // puntos no firmes (círculo hueco) y bordes de huecos sin fuente (rombo); fuera del clip para no cortarse en los bordes.
+    // (Sin <title>: el rect de interacción quedaría encima; el cuadro emergente propio explica el hueco.)
+    var gm = g.append('g'), nGapMarks = 0, nNoFirme = 0;
     lista.forEach(function (s) {
+      var postGap = {};
+      (s.gaps || []).forEach(function (hg) { postGap[hg.bIso] = true; });
       s.segs.forEach(function (sg) {
         sg.pts.forEach(function (p) {
-          if (p.row && p.row.firme === false && p.d >= xmin && p.d <= xmax) {
-            gl.append('circle').attr('cx', x(p.d)).attr('cy', yOf(s, p.v)).attr('r', mobile ? 3.5 : 4.5)
+          if (p.row && p.row.firme === false && p.d >= xmin && p.d <= xmax && !postGap[p.row.fecha]) {
+            nNoFirme++;
+            gm.append('circle').attr('cx', x(p.d)).attr('cy', yOf(s, p.v)).attr('r', mobile ? 3.5 : 4.5)
               .style('fill', 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
           }
+        });
+      });
+      // hueco: último punto conocido antes (a) y primero después (b); nunca se arrastra el precio
+      (s.gaps || []).forEach(function (hg) {
+        if (hg.b < xmin || hg.a > xmax) return;
+        var sa = s.segs.filter(function (sg) { return +sg.end === +hg.a; })[0];
+        var sb = s.segs.filter(function (sg) { return +sg.pts[0].d === +hg.b; })[0];
+        if (!sa || !sb) return;
+        var pa = sa.pts[sa.pts.length - 1], pb = sb.pts[0], r = mobile ? 5 : 6;
+        [[hg.a, pa.v, true], [hg.b, pb.v, pb.row && pb.row.firme !== false]].forEach(function (q) {
+          if (q[0] < xmin || q[0] > xmax) return;
+          nGapMarks++;
+          var cx = x(q[0]), cy = yOf(s, q[1]);
+          gm.append('path').attr('d', 'M' + cx + ',' + (cy - r) + 'l' + r + ',' + r + 'l' + (-r) + ',' + r + 'l' + (-r) + ',' + (-r) + 'z')
+            .style('fill', q[2] ? s.color : 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
         });
       });
     });
@@ -382,44 +506,53 @@
         fin.push({ s: s, x: x(gLast.end), y: yOf(s, pl.v), end: gLast.end });
       }
     });
-    var gap = mobile ? 25 : fs + 3;
-    relax(lab, gap, 4, ih + 6);
+    var gap = fs + 3;
     var lx = iw + axisR + 6;
-    lab.forEach(function (it) {
-      var s = it.s;
-      if (!index || true) {
+    function valTxt(s, v) {
+      if (index) return dec(v, 0);
+      return s.kind === 'oil' ? 'US$ ' + dec(v, 2) + '/gal' : miles(v);
+    }
+    if (mobile) {
+      // móvil: puntos sobre la línea y un bloque de valores debajo del gráfico (texto en tinta del tema)
+      lab.forEach(function (it) { g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', it.s.color); });
+    } else {
+      relax(lab, gap, band, ih + 6);
+      lab.forEach(function (it) {
+        var s = it.s;
         g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', s.color);
-      }
-      if (index && Math.abs(it.y - it.y0) > 1) {
-        g.append('line').attr('x1', iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color).attr('stroke-width', 1);
-      }
-      var sw = g.append('g').attr('transform', 'translate(' + lx + ',' + it.y + ')');
-      if (s.kind === 'oil') {
-        sw.append('line').attr('x1', 0).attr('x2', mobile ? 10 : 14).attr('y1', 0).attr('y2', 0).style('stroke', s.color)
-          .attr('stroke-width', 3.5).attr('stroke-linecap', 'round').attr('stroke-dasharray', '0.1 5');
-      } else {
-        sw.append('line').attr('x1', 0).attr('x2', mobile ? 10 : 14).attr('y1', 0).attr('y2', 0).style('stroke', s.color).attr('stroke-width', 3);
-      }
-      if (mobile) {
-        sw.selectAll('line').attr('x2', 8).attr('y1', -6).attr('y2', -6);
-        var nm = sw.append('text').attr('x', 11).attr('y', -6).attr('dy', '0.34em').attr('font-size', fs - 1.5).attr('class', 'lbl-v').text(s.short);
-        sw.append('text').attr('x', 0).attr('y', 7).attr('dy', '0.34em').attr('font-size', fs).attr('font-weight', 700)
-          .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v')
-          .text(s.kind === 'oil' && !index ? dec(it.v, 2) : (index ? dec(it.v, 0) : miles(it.v)));
-        return;
-      }
-      var tx = sw.append('text').attr('x', (mobile ? 13 : 18)).attr('y', 0).attr('dy', '0.34em').attr('font-size', fs)
-        .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v');
-      var nombre = mobile ? s.short : (s.kind === 'oil' ? s.name : s.name);
-      var valTxt = s.kind === 'oil' && !index ? dec(it.v, 2) : (index ? dec(it.v, 0) : miles(it.v));
-      tx.append('tspan').text(nombre + ' ');
-      tx.append('tspan').attr('font-weight', 700).text(valTxt);
-    });
+        if (Math.abs(it.y - it.y0) > 1) {
+          g.append('line').attr('x1', iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color).attr('stroke-width', 1);
+        }
+        var sw = g.append('g').attr('transform', 'translate(' + lx + ',' + it.y + ')');
+        if (s.kind === 'oil') {
+          sw.append('line').attr('x1', 0).attr('x2', 14).attr('y1', 0).attr('y2', 0).style('stroke', s.color)
+            .attr('stroke-width', 2.6).attr('stroke-linecap', 'round').attr('stroke-dasharray', '0.1 5');
+        } else {
+          sw.append('line').attr('x1', 0).attr('x2', 14).attr('y1', 0).attr('y2', 0).style('stroke', s.color).attr('stroke-width', 3);
+        }
+        var tx = sw.append('text').attr('x', 18).attr('y', 0).attr('dy', '0.34em').attr('font-size', fs)
+          .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v');
+        tx.append('tspan').text((s.kind === 'oil' ? s.short : s.name) + ' ');
+        tx.append('tspan').attr('font-weight', 700).text(valTxt(s, it.v));
+      });
+    }
     fin.forEach(function (it) {
       // marcador discreto del corte (el texto "dato hasta" está en tabla, nota y tooltip)
-      g.append('line').attr('x1', it.x).attr('x2', it.x).attr('y1', it.y - 7).attr('y2', it.y + 7).style('stroke', it.s.color).attr('stroke-width', 2.5)
-        .append('title').text(it.s.name + ': dato hasta ' + fmtD(it.end));
+      g.append('line').attr('x1', it.x).attr('x2', it.x).attr('y1', it.y - 7).attr('y2', it.y + 7).style('stroke', it.s.color).attr('stroke-width', 2.5);
     });
+
+    if (mobile) {
+      var fb = document.createElement('ul');
+      fb.className = 'finales';
+      var items = lab.slice().sort(function (a, b) { return a.y0 - b.y0; }).map(function (it) {
+        return { s: it.s, txt: valTxt(it.s, it.v) };
+      }).concat(fin.map(function (it) { return { s: it.s, txt: 'dato hasta ' + fmtD(it.end) }; }));
+      fb.innerHTML = items.map(function (it) {
+        return '<li><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
+          + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong></li>';
+      }).join('');
+      host.appendChild(fb);
+    }
 
     // interacción
     var guia = g.append('line').attr('class', 'guia').attr('y1', 0).attr('y2', ih).style('display', 'none');
@@ -469,6 +602,17 @@
       } else {
         h += '<div class="f">Sin precio vigente de los productos elegidos en esta fecha.</div>';
         st.foco = null;
+      }
+      lista.forEach(function (s) {
+        var hg = gapAt(s, t);
+        if (hg && !hg.b) h += '<div class="sep"><span class="sw" style="border-color:' + s.color + ';width:12px"></span> <strong>' + esc(s.name)
+          + '</strong>: sin datos desde ' + fmtD(hg.a) + '.</div>';
+        else if (hg) h += '<div class="sep"><span class="sw" style="border-color:' + s.color + ';width:12px"></span> <strong>' + esc(s.name)
+          + '</strong>: sin datos entre ' + fmtD(hg.a) + ' y ' + fmtD(hg.b) + '. <span class="f">No se estima ni se arrastra el último precio.</span></div>';
+      });
+      if (tramoVis && t >= TRAMO.a && t < TRAMO.b) {
+        h += '<div class="sep f">Entre ' + fmtD(TRAMO.a) + ' y ' + fmtD(TRAMO.b)
+          + ' el dato es el precio máximo y/o sugerido, no el precio de venta al público.</div>';
       }
       if (showOil && OIL[o.oil.key]) {
         var od = OIL[o.oil.key].diario, i = d3.bisector(function (q) { return q.d; }).left(od, t);
@@ -532,22 +676,24 @@
 
     // leyenda
     var lg = document.getElementById(o.leyendaId);
-    if (lg) lg.innerHTML = leyendaHtml(lista, showOil ? o.oil : null);
+    if (lg) lg.innerHTML = leyendaHtml({
+      nofirme: nNoFirme > 0,
+      hueco: nGapMarks > 0, hito: hitosV.length > 0, banda: hayBanda, tri: hayTri, tramo: tramoVis, pres: presVis
+    });
 
     // avisos y datos de la base
     if (o.onInfo) o.onInfo({ base: base, activas: activas.length });
   }
 
-  function leyendaHtml(lista, oil) {
+  // Leyenda: solo clave de símbolos (productos y petróleo ya están en chips y etiquetas finales)
+  function leyendaHtml(f) {
     var h = '';
-    lista.forEach(function (s) {
-      h += '<span class="it"><span class="sw" style="border-color:' + s.color + '"></span>' + esc(s.name) + '</span>';
-    });
-    if (oil) h += '<span class="it"><svg width="20" height="8" aria-hidden="true"><line x1="2" x2="18" y1="4" y2="4" stroke="currentColor" style="color:var(--oil)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="0.1 5"/></svg>' + esc(oil.name) + ' (promedio mensual)</span>';
-    h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Punto no firme (precio no verificado o fecha por confirmar)</span>';
-    h += '<span class="it"><svg width="22" height="10" aria-hidden="true"><line x1="1" x2="21" y1="5" y2="5" stroke="currentColor" style="color:var(--hito)" stroke-width="1.5" stroke-dasharray="6 4"/></svg>Hito</span>';
-    h += '<span class="it"><svg width="18" height="12" aria-hidden="true"><defs><pattern id="lgp" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" style="color:var(--promo)" stroke-width="2"/></pattern></defs><rect width="18" height="12" fill="url(#lgp)"/></svg>Promoción o baja temporal</span>';
-    h += '<span class="it">Sombreado: período presidencial (' + (D.presidentes || []).map(function (p) { return esc(PRES_CORTO[p.nombre] || p.nombre); }).join(', ') + ')</span>';
+    if (f.nofirme) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Punto no firme (precio no verificado o fecha por confirmar)</span>';
+    if (f.hueco) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><path d="M7,1 L13,7 L7,13 L1,7z" fill="currentColor"/></svg>Borde de un hueco sin datos</span>';
+    if (f.hito) h += '<span class="it"><svg width="22" height="10" aria-hidden="true"><line x1="1" x2="21" y1="5" y2="5" stroke="currentColor" style="color:var(--hito)" stroke-width="1.5" stroke-dasharray="6 4"/></svg>Hito</span>';
+    if (f.banda || f.tri) h += '<span class="it"><svg width="34" height="14" aria-hidden="true"><defs><pattern id="lgp" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" style="color:var(--promo)" stroke-width="2"/></pattern></defs><rect x="0" y="0" width="18" height="12" fill="url(#lgp)" stroke="currentColor" style="color:var(--promo)"/><path d="M26,12 l5,-9 l5,9z" fill="currentColor" style="color:var(--promo)" transform="translate(-4,0)"/></svg>Promoción o baja temporal (' + (f.banda && f.tri ? 'banda con fecha de fin; ▲ si no la tiene' : (f.banda ? 'banda con trama' : '▲ sobre el eje')) + ')</span>';
+    if (f.tramo) h += '<span class="it"><svg width="18" height="14" aria-hidden="true"><defs><pattern id="lgm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" style="color:var(--muted)" stroke-width="1"/></pattern></defs><rect width="18" height="12" fill="url(#lgm)" stroke="currentColor" style="color:var(--faint)" stroke-width="0.5"/></svg>Precio máximo/sugerido (trama)</span>';
+    if (f.pres.length) h += '<span class="it"><svg width="18" height="12" aria-hidden="true"><rect width="9" height="12" style="fill:var(--shade-a)"/><rect x="9" width="9" height="12" style="fill:var(--shade-b)"/></svg>Sombreado: período presidencial (' + f.pres.map(function (p) { return esc(PRES_CORTO[p.nombre] || p.nombre); }).join(', ') + ')</span>';
     return h;
   }
 
@@ -562,7 +708,7 @@
     var av = el('#aviso-vista');
     var msgBase = '';
     if (state.oil !== 'none' && !oil) msgBase = 'No hay datos de ' + OIL_NOMBRE[state.oil] + ' en data.json. ';
-    if (state.vista === 'dual') {
+    if (state.vista === 'dual' && oil) {
       av.textContent = msgBase + 'Doble eje: la escala izquierda (Gs por litro) y la derecha (US$ por galón) son independientes. No compares alturas entre combustibles y petróleo.';
     } else {
       av.textContent = msgBase;
@@ -584,6 +730,7 @@
     var sel = glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
     drawChart('chart-glp', {
       series: sel, oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
+      xDesdeDatos: true, sinPromos: true,
       vacio: 'Sin datos todavía. El GLP (Ñande Gas) entra con la primera captura del scraper.',
       ejeL: 'Gs por kg / por litro',
       unidadTxt: function (s) { return PRODS[s.id].meta.unidad === 'kg' ? 'por kg' : 'por litro'; },
@@ -603,13 +750,15 @@
         h += '<tr><td class="prod" data-l="Producto">' + sw + esc(m.nombre) + '</td><td colspan="6" data-l="Estado">Sin datos todavía</td></tr>';
         return;
       }
-      var us = (r.urls || []).filter(urlOk).map(function (u, i) {
-        return '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">enlace' + (r.urls.length > 1 ? ' ' + (i + 1) : '') + '</a>';
+      var uv = (r.urls || []).filter(urlOk);
+      var us = uv.map(function (u, i) {
+        return '<a href="' + esc(u) + '" target="_blank" rel="noopener noreferrer">enlace' + (uv.length > 1 ? ' ' + (i + 1) : '') + '</a>';
       }).join(' · ');
+      var futuro = r.fecha > iso(new Date());
       var corte = m.datos_hasta && r.fecha <= m.datos_hasta;
       h += '<tr><td class="prod" data-l="Producto">' + sw + esc(m.nombre) + '</td>'
         + '<td class="num" data-l="Precio">' + gs(r.precio) + (m.unidad === 'kg' ? ' / kg' : ' / litro') + '</td>'
-        + '<td class="num" data-l="Vigente desde">' + fmtIso(r.fecha) + (corte ? '<br><small>último dato; sin precio desde ' + fmtIso(m.datos_hasta) + '</small>' : '') + '</td>'
+        + '<td class="num" data-l="Vigente desde">' + (futuro ? 'Rige desde ' : '') + fmtIso(r.fecha) + (futuro ? '<br><small>todavía no vigente</small>' : '') + (corte ? '<br><small>último dato; sin precio desde ' + fmtIso(m.datos_hasta) + '</small>' : '') + '</td>'
         + '<td data-l="Tipo de precio">' + esc(TIPO_TXT[r.tipo_precio] || r.tipo_precio) + '</td>'
         + '<td data-l="Estado">' + esc(ESTADO_TXT[r.estado] || r.estado) + (r.firme === false ? ' (no firme)' : '') + '</td>'
         + '<td data-l="Fecha">' + esc(FECHA_ESTADO_TXT[r.fecha_estado] || r.fecha_estado) + '</td>'
@@ -671,10 +820,6 @@
       cancelAnimationFrame(raf); raf = requestAnimationFrame(render);
     });
     ro.observe(document.body);
-    if (window.matchMedia) {
-      var mq = window.matchMedia('(prefers-color-scheme: dark)');
-      if (mq.addEventListener) mq.addEventListener('change', render);
-    }
   }
 
   function textos() {
@@ -700,9 +845,20 @@
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderTabla(); renderEventos(); wireControls(); render();
+    textos(); buildChips(); renderTabla(); renderEventos(); wireControls();
+    /* Parámetros de URL (para compartir o capturar): ?rango=all|10|5|2 y ?pestana=glp */
+    try {
+      var qp = new URLSearchParams(location.search), rg = qp.get('rango');
+      if (rg && ['all', '10', '5', '2'].indexOf(rg) >= 0) {
+        state.rango = rg;
+        var ri = document.querySelector('input[name=rango][value="' + rg + '"]'); if (ri) ri.checked = true;
+      }
+      if (qp.get('pestana') === 'glp') { el('#tab-glp').click(); return; }
+    } catch (e) { /* sin parámetros */ }
+    render();
   }
 
+  initTema();
   fetch('data.json', { cache: 'no-cache' })
     .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(init)

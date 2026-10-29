@@ -1,53 +1,53 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fcfcfb;
   --text: #0b0b0b;
   --muted: #52514e;
   --faint: #7a7974;
-  --grid: #dcdad5;
+  --grid: #e6e5e1;
   --axis: #b5b3ad;
-  --shade-a: #f3f2ee;
-  --shade-b: #e6e5e0;
+  --shade-a: #f6f5f2;
+  --shade-b: #ebeae6;
   --card: #ffffff;
   --border: #d8d6d0;
-  --oil: #1f1f1d;
-  --hito: #7a1f1f;
-  --promo: #566474;
+  --oil: #52514e;
+  --hito: #52514e;
+  --promo: #2f6f8f;
   --accent: #2a78d6;
   --c-diesel_mbarete: #2a78d6;
   --c-diesel_pora: #eb6834;
   --c-nafta_aratiri97: #1baf7a;
   --c-nafta_oikoite93: #eda100;
   --c-nafta_kape88: #e87ba4;
-  --c-nafta_ecoflex85: #008300;
+  --c-nafta_ecoflex85: #6250d6;
   --c-glp_kg: #3d3c39;
   --c-glp_litro: #8f8d86;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1a1a19;
-    --text: #f0efeb;
-    --muted: #b9b7b0;
-    --faint: #8f8d86;
-    --grid: #333331;
-    --axis: #5a5955;
-    --shade-a: #222221;
-    --shade-b: #2c2c2a;
-    --card: #232322;
-    --border: #3d3c39;
-    --oil: #e8e7e2;
-    --hito: #e58b8b;
-    --promo: #9fb0c0;
-    --accent: #3987e5;
-    --c-diesel_mbarete: #3987e5;
-    --c-diesel_pora: #d95926;
-    --c-nafta_aratiri97: #199e70;
-    --c-nafta_oikoite93: #c98500;
-    --c-nafta_kape88: #d55181;
-    --c-nafta_ecoflex85: #008300;
-    --c-glp_kg: #d8d6cf;
-    --c-glp_litro: #8f8d86;
-  }
+/* El tema lo fija data-theme en <html> (ver index.html); no se sigue prefers-color-scheme. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1a1a19;
+  --text: #f0efeb;
+  --muted: #c3c2b7;
+  --faint: #8f8d86;
+  --grid: #2e2e2c;
+  --axis: #5a5955;
+  --shade-a: #222221;
+  --shade-b: #2c2c2a;
+  --card: #232322;
+  --border: #3d3c39;
+  --oil: #9a998f;
+  --hito: #c3c2b7;
+  --promo: #6fb0d0;
+  --accent: #3987e5;
+  --c-diesel_mbarete: #3987e5;
+  --c-diesel_pora: #d95926;
+  --c-nafta_aratiri97: #199e70;
+  --c-nafta_oikoite93: #c98500;
+  --c-nafta_kape88: #d55181;
+  --c-nafta_ecoflex85: #9085e9;
+  --c-glp_kg: #d8d6cf;
+  --c-glp_litro: #8f8d86;
 }
 
 * { box-sizing: border-box; }
@@ -57,11 +57,19 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow-x: hidden;
 }
 .cab, main, .pie { max-width: 1120px; margin: 0 auto; padding: 0 14px; }
 .cab { padding-top: 18px; }
 h1 { font-size: clamp(1.25rem, 4.6vw, 1.9rem); line-height: 1.2; margin: 0 0 6px; }
+.cab-fila { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; }
+.btn-tema {
+  flex: none; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--text); cursor: pointer; padding: 0;
+}
+.btn-tema:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn-tema .ic-luna { display: none; }
+:root[data-theme="dark"] .btn-tema .ic-sol { display: none; }
+:root[data-theme="dark"] .btn-tema .ic-luna { display: block; }
 h2 { font-size: 1.15rem; margin: 0 0 8px; }
 .sub { color: var(--muted); margin: 0 0 6px; max-width: 80ch; }
 .frescura { margin: 0 0 12px; font-weight: 600; font-size: .9rem; }
@@ -116,8 +124,9 @@ legend { font-size: .75rem; color: var(--muted); padding: 0 0 3px; text-transfor
 .chart .lbl-v { fill: var(--text); }
 .chart .lbl-oil { fill: var(--muted); font-weight: 700; }
 .chart .halo { paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
-.chart .hito-l { stroke: var(--hito); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.chart .hito-l { stroke: var(--hito); stroke-width: 1.5; stroke-dasharray: 6 4; opacity: .85; }
 .chart .hito-t { fill: var(--hito); font-weight: 700; }
+.chart .tramo-t { fill: var(--muted); font-style: italic; }
 .chart .promo-t { fill: var(--promo); }
 .chart .guia { stroke: var(--muted); stroke-width: 1; opacity: .6; }
 .chart .base-l { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
@@ -137,6 +146,9 @@ legend { font-size: .75rem; color: var(--muted); padding: 0 0 3px; text-transfor
 .tt .x { position: absolute; top: 2px; right: 4px; border: 0; background: none; color: var(--text); font-size: 1.1rem; cursor: pointer; padding: 2px 6px; }
 .tt .nofirme { display: inline-block; font-weight: 700; color: var(--bg); background: var(--text); border-radius: 4px; padding: 0 5px; font-size: .72rem; }
 
+.finales { list-style: none; margin: 4px 0 0; padding: 6px 2px 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .84rem; border-top: 1px solid var(--border); }
+.finales li { display: inline-flex; align-items: center; gap: 6px; }
+.sw-oil { border-top-style: dotted; }
 .leyenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .8rem; color: var(--muted); margin: 6px 0 10px; }
 .leyenda .it { display: inline-flex; align-items: center; gap: 6px; }
 .leyenda svg { flex: none; }
