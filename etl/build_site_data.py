@@ -18,6 +18,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from etl.io_csv import DATA, RAIZ, leer_csv
+from etl.privados import privados_json
 
 ASUNCION = ZoneInfo("America/Asuncion")
 # sin flecha de cambio si el precio anterior con fuente tiene más de esto respecto de hoy
@@ -230,6 +231,7 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
         "presidentes": [{"nombre": p["nombre"], "inicio": p["inicio"], "fin": p["fin"] or None}
                         for p in leer_csv(data / "presidentes.csv")],
         "eventos": eventos_json(leer_csv(data / "eventos.csv")),
+        "privados": privados_json(data, ahora.astimezone(ASUNCION).date()),
     }
 
 

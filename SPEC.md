@@ -156,6 +156,15 @@ Mantener `site/` organizado para sumar secciones sin romper la URL actual.
 ### Datos
 - `data/equivalencias.csv`: emblema, producto_comercial, categoria (mismas etiquetas que `productos.csv`), desde, hasta, fuente (texto + URL). Solo equivalencias respaldadas por la fuente; las inferidas por orden de precios quedan en el relevamiento.
 - Mismas reglas que Petropar: nunca inventar ni completar precios; sin fuente va `a_confirmar`; histórico de solo agregar.
+- `data/emblemas.csv` (emblema, nombre, cuota_2025, nota) y `data/precios_privados.csv` (fecha_vigencia, emblema,
+  producto_comercial, categoria, precio_gs, estado, fecha_estado, fuente, fuente_url, nota): solo precios
+  explícitos de notas abiertas, nunca montos de suba sumados a un precio anterior ni datos de fulltanque.net.
+  Categoría vacía si la nota no permite asignarla sin inferir por precio (queda en el historial, no en la tabla).
+  Dos notas con valores distintos el mismo día se cargan las dos y la celda sale "por confirmar".
+- `etl/privados.py` arma `privados` en `data.json`: último precio por emblema y categoría (la fecha es la primera
+  nota que reportó ese precio), atenuado si tiene más de 7 días, y omitido ("sin dato reciente") si tiene más de
+  6 meses. La tabla muestra Petropar como fila de referencia con su precio vigente. Sin "más barato resaltado":
+  los precios tienen fechas distintas y no se comparan.
 
 ## Fuera de alcance (por ahora)
 - Precios de emblemas privados (ver v2).

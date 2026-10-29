@@ -315,10 +315,36 @@ td a, .ev a { color: var(--link); }
 .modo-og body { width: 1200px; height: 630px; overflow: hidden; }
 .modo-og .cab { max-width: none; padding: var(--s4) var(--s5) 0; }
 .modo-og h1 { max-width: none; font-size: 30px; }
-.modo-og .btn-tema, .modo-og #hoy, .modo-og .sec-cab, .modo-og .tabs, .modo-og .controles, .modo-og .chips,
+.modo-og .btn-tema, .modo-og #hoy, .modo-og #privados, .modo-og .sec-cab, .modo-og .tabs, .modo-og .controles, .modo-og .chips,
 .modo-og .nota-eje, .modo-og .leyenda, .modo-og .bloque, .modo-og #metodologia, .modo-og .pie { display: none !important; }
 .modo-og main { max-width: none; padding: 0 var(--s5); }
 .modo-og .seccion { margin-top: var(--s2); }
 .modo-og .og-fuente { display: block; font-size: 14px; color: var(--faint); margin: 6px 0 0; }
 .og-fuente { display: none; }
 #metodologia { scroll-margin-top: var(--s3); }
+
+/* Emblemas privados: tabla marca × categoría; en celular, tarjetas por marca */
+.pv-wrap { border-top: 1px solid var(--text); }
+.pv { font-size: .88rem; table-layout: fixed; }
+.pv th, .pv td { padding: var(--s2) var(--s2) var(--s2) 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+.pv thead th { white-space: normal; }
+.pv tbody th { font-weight: 600; text-align: left; width: 18%; }
+.pv-sub { display: block; font-weight: 400; font-size: .75rem; color: var(--faint); }
+.pv-ref { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.pv-precio { display: block; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pv-meta { display: block; font-size: .75rem; color: var(--faint); line-height: 1.4; }
+.pv-meta a { color: var(--muted); }
+.pv-viejo .pv-precio { color: var(--faint); font-weight: 600; }
+.pv-vacia { color: var(--faint); font-size: .8rem; }
+.pv-pie { text-align: left; margin-top: var(--s2); }
+@media (max-width: 760px) {
+  .pv thead { position: absolute; left: -9999px; }
+  .pv, .pv tbody, .pv tr, .pv th, .pv td { display: block; width: 100%; }
+  .pv tr { border-bottom: 1px solid var(--rule); padding: var(--s2) 0; }
+  .pv tbody th { width: auto; border: 0; padding: 0 0 var(--s1); font-size: .95rem; }
+  .pv td { display: grid; grid-template-columns: 7.5rem 1fr; column-gap: var(--s2); border: 0; padding: 2px 0; }
+  .pv td::before { content: attr(data-l); color: var(--muted); font-size: .8rem; grid-row: span 2; }
+  .pv-ref { background: none; }
+}
+.pv tbody th { text-transform: none; letter-spacing: 0; font-size: .92rem; color: var(--text); }
+.pv-sub { text-transform: none; letter-spacing: 0; }

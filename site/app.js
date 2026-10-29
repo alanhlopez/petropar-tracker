@@ -866,6 +866,46 @@
       if (b) irAlGrafico(b.getAttribute('data-id'));
     });
   }
+  /* ---------- Emblemas privados: últimos cambios reportados (v2) ----------
+     Todo viene calculado en data.privados (último precio por emblema y categoría, días desde la vigencia, "viejo").
+     Petropar va como primera fila de referencia, con su precio vigente de data.tarjetas.
+     Desktop: tabla marca × categoría. Celular: la misma tabla se apila en tarjetas por marca (CSS). */
+  function renderPrivados() {
+    var box = el('#tabla-privados'); if (!box) return;
+    var P = D.privados;
+    if (!P || !P.emblemas || !P.emblemas.length) { box.innerHTML = '<p class="hoy-nd">Sin datos de emblemas privados.</p>'; return; }
+    var cats = P.categorias, celdas = {};
+    (P.ultimos || []).forEach(function (u) { celdas[u.emblema + '|' + u.categoria] = u; });
+    var catDe = {}; (D.productos || []).forEach(function (p) { catDe[p.id] = p.categoria; });
+    var pp = {}; (D.tarjetas || []).forEach(function (t) { if (t.precio != null && catDe[t.id]) pp[catDe[t.id]] = t; });
+    function celdaPetropar(c) {
+      var t = pp[c];
+      if (!t) return '<td class="pv-vacia" data-l="' + esc(c) + '">—</td>';
+      return '<td data-l="' + esc(c) + '"><span class="pv-precio">' + gs(t.precio) + '</span>'
+        + '<span class="pv-meta">' + (t.fecha_vigencia_confirmada ? 'desde ' + fechaCorta(t.vigente_desde) : '<span class="f-pc">por confirmar</span>')
+        + ' · <a href="https://www.petropar.gov.py/?page_id=4460" rel="noopener noreferrer">Petropar</a></span></td>';
+    }
+    function celda(e, c) {
+      var u = celdas[e + '|' + c];
+      if (!u) return '<td class="pv-vacia" data-l="' + esc(c) + '">sin dato reciente</td>';
+      var aviso = u.viejo ? 'Reportado hace ' + u.dias + ' días: puede haber cambiado.' : '';
+      return '<td class="' + (u.viejo ? 'pv-viejo' : '') + '" data-l="' + esc(c) + '"' + (aviso ? ' title="' + esc(aviso) + '"' : '') + '>'
+        + '<span class="pv-precio">' + gs(u.precio) + '</span>'
+        + '<span class="pv-meta">' + (u.fecha_estado === 'confirmada' ? '' : '~') + fmtIso(u.fecha)
+        + (urlOk(u.url) ? ' · <a href="' + esc(u.url) + '" target="_blank" rel="noopener noreferrer">' + esc(String(u.fuente).replace(/\s+\d{2}\/\d{2}\/\d{4}$/, '')) + '</a>' : '')
+        + (u.firme ? '' : ' <span class="f-pc">por confirmar</span>') + '</span>'
+        + (u.viejo ? '<span class="sr-only"> ' + esc(aviso) + '</span>' : '') + '</td>';
+    }
+    var h = '<div class="pv-wrap"><table class="pv"><thead><tr><th scope="col">Emblema</th>'
+      + cats.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>'
+      + '<tr class="pv-ref"><th scope="row">Petropar <span class="pv-sub">precio vigente</span></th>' + cats.map(celdaPetropar).join('') + '</tr>'
+      + P.emblemas.map(function (e) {
+        return '<tr><th scope="row">' + esc(e.nombre) + '</th>' + cats.map(function (c) { return celda(e.id, c); }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>'
+      + '<p class="nota-eje pv-pie">Atenuado: precio reportado hace más de ' + P.dias_viejo + ' días. ~ antes de la fecha: vigencia deducida de la nota, sin fecha explícita. '
+      + 'Sin dato reciente: ninguna nota con precio en los últimos ' + Math.round(P.dias_max / 30.5) + ' meses para esa categoría. Los precios no se comparan entre sí porque tienen fechas distintas.</p>';
+    box.innerHTML = h;
+  }
   function irAlGrafico(id) {
     if (id === 'glp') {
       if (state.tab !== 'glp') el('#tab-glp').click(); else render();
@@ -1166,7 +1206,7 @@
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls(); wireDescargas();
+    textos(); buildChips(); renderLista(); renderPrivados(); verificacion(); renderEventos(); wireControls(); wireDescargas();
     if (OG) {
       var u = D.ultimo_dato || {}, pf = document.createElement('p');
       pf.className = 'og-fuente';
