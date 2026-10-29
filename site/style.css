@@ -160,7 +160,7 @@ legend { font-size: .72rem; font-weight: 500; color: var(--faint); padding: 0 0 
 
 /* chips de producto (botones de alternancia) */
 .chips { margin-bottom: var(--s3); }
-.chips-box { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips-box { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .chipb {
   display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font: inherit; font-size: .82rem; font-weight: 500; cursor: pointer;
   border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--faint);
@@ -221,7 +221,7 @@ legend { font-size: .72rem; font-weight: 500; color: var(--faint); padding: 0 0 
 /* desplegables: sin caja, solo filetes */
 .bloque { margin-top: var(--s5); border-bottom: 1px solid var(--rule); }
 details { border-top: 1px solid var(--rule); }
-summary { cursor: pointer; padding: 12px 0; font-weight: 600; font-size: .95rem; }
+summary { cursor: pointer; padding: var(--s3) 0; font-weight: 600; font-size: .95rem; }
 summary:hover { color: var(--link); }
 details > div { padding-bottom: var(--s3); }
 
@@ -271,8 +271,8 @@ td a, .ev a { color: var(--link); }
 .fila {
   align-content: start;
   font: inherit; color: var(--text); text-align: left; cursor: pointer; width: 100%;
-  background: transparent; border: 0; border-bottom: 1px solid var(--grid); padding: 10px 0; min-width: 0;
-  display: grid; align-items: baseline; column-gap: 12px; grid-template-columns: var(--cols);
+  background: transparent; border: 0; border-bottom: 1px solid var(--grid); padding: var(--s2) 0; min-width: 0;
+  display: grid; align-items: baseline; column-gap: var(--s3); grid-template-columns: var(--cols);
 }
 .fila:hover .f-nom { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .fila:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
@@ -286,7 +286,7 @@ td a, .ev a { color: var(--link); }
 .pill { display: inline-block; font-size: .78rem; font-weight: 600; line-height: 1.5; padding: 0 7px; border-radius: 999px; white-space: nowrap; }
 .pill.sube { background: var(--sube-bg); color: var(--sube-tx); }
 .pill.baja { background: var(--baja-bg); color: var(--baja-tx); }
-.f-meta { font-size: .78rem; color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.f-meta { font-size: .78rem; line-height: 1.4; color: var(--faint); min-width: 0; font-variant-numeric: tabular-nums; }
 .f-pc { font-variant-caps: all-small-caps; letter-spacing: .05em; font-size: .86rem; color: var(--faint); font-weight: 500; }
 /* celular: precio a la derecha del nombre; variación y fecha en una segunda línea */
 @media (max-width: 560px) {
@@ -308,11 +308,11 @@ td a, .ev a { color: var(--link); }
 
 /* Modo imagen para compartir (?og=1): 1200×630, solo título y gráfico. Lo captura etl/og_image.py. */
 .modo-og body { width: 1200px; height: 630px; overflow: hidden; }
-.modo-og .cab { max-width: none; padding: 28px 40px 0; }
+.modo-og .cab { max-width: none; padding: var(--s4) var(--s5) 0; }
 .modo-og h1 { max-width: none; font-size: 30px; }
 .modo-og .btn-tema, .modo-og #hoy, .modo-og .sec-cab, .modo-og .tabs, .modo-og .controles, .modo-og .chips,
 .modo-og .nota-eje, .modo-og .leyenda, .modo-og .bloque, .modo-og #metodologia, .modo-og .pie { display: none !important; }
-.modo-og main { max-width: none; padding: 0 40px; }
-.modo-og .seccion { margin-top: 12px; }
+.modo-og main { max-width: none; padding: 0 var(--s5); }
+.modo-og .seccion { margin-top: var(--s2); }
 .modo-og .og-fuente { display: block; font-size: 14px; color: var(--faint); margin: 6px 0 0; }
 .og-fuente { display: none; }

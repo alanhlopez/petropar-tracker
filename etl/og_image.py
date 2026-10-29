@@ -32,20 +32,28 @@ class Silencioso(SimpleHTTPRequestHandler):
 
 
 def generar(salida: Path) -> None:
+    """Genera en un temporal y solo reemplaza `salida` si el gráfico se dibujó: si D3 o los datos no
+    cargan, Chrome igual saca una captura (vacía) y no hay que commitearla."""
     srv = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Silencioso, directory=str(SITE)))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{srv.server_address[1]}/index.html?og=1&tema=claro"
     try:
-        with tempfile.TemporaryDirectory() as perfil:
-            subprocess.run([buscar_chrome(), "--headless=new", "--disable-gpu", "--hide-scrollbars",
-                            "--no-first-run", "--no-default-browser-check", f"--user-data-dir={perfil}",
-                            "--force-device-scale-factor=1", "--window-size=1200,630",
-                            "--virtual-time-budget=8000", f"--screenshot={salida.resolve()}", url],
+        with tempfile.TemporaryDirectory() as tmp:
+            base = [buscar_chrome(), "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                    "--no-first-run", "--no-default-browser-check", "--force-device-scale-factor=1",
+                    "--window-size=1200,630", "--virtual-time-budget=8000"]
+            dom = subprocess.run([*base, f"--user-data-dir={tmp}/p1", "--dump-dom", url],
+                                 check=True, capture_output=True, text=True, timeout=90).stdout
+            if 'id="chart-liq"><svg' not in dom or "og-fuente" not in dom:
+                raise SystemExit("El gráfico no se dibujó (¿falló D3 o data.json?): no se toca og.png.")
+            png = Path(tmp) / "og.png"
+            subprocess.run([*base, f"--user-data-dir={tmp}/p2", f"--screenshot={png}", url],
                            check=True, capture_output=True, timeout=90)
+            if not png.exists() or png.stat().st_size < 10_000:
+                raise SystemExit("La captura no se generó bien: no se toca og.png.")
+            shutil.move(png, salida)
     finally:
         srv.shutdown()
-    if not salida.exists() or salida.stat().st_size < 10_000:
-        raise SystemExit(f"La captura {salida} no se generó bien.")
 
 
 def main() -> None:

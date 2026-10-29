@@ -774,7 +774,7 @@
     var o = optsLiq(), av = el('#aviso-vista');
     av.textContent = notaVista(null);
     o.onInfo = function (i) { av.textContent = notaVista(i.base); };
-    if (OG) o.altura = 470;
+    if (OG) o.altura = 520;
     drawChart('chart-liq', o);
   }
   function renderGlp() {
@@ -846,8 +846,8 @@
       cam += '</span>';
       var conf = its.every(function (x) { return x.fecha_vigencia_confirmada && x.vigente_desde; });
       var meta = '';
-      if (conf) meta += (main.vigente_desde > HOY ? 'rige desde ' : 'desde ') + fechaCorta(main.vigente_desde);
-      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? ' · ' : '') + '<span class="f-pc">por confirmar</span>';
+      if (conf) meta += (main.vigente_desde > HOY ? 'rige desde\u00a0' : 'desde\u00a0') + fechaCorta(main.vigente_desde);
+      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? '<br>' : '') + '<span class="f-pc">por confirmar</span>';
       return '<button type="button" class="fila" data-id="' + esc(f.id) + '" style="--tc:' + f.color + '">'
         + '<span class="f-dot" aria-hidden="true"></span>'
         + '<span class="f-nom">' + esc(f.nombre) + '</span>'
@@ -878,7 +878,7 @@
   }
   // Hora de la última verificación: API pública de GitHub (timeout corto, nunca bloquea); si falla, data.ultima_captura
   function verificacion() {
-    var v = el('#verif'); if (!v) return;
+    var v = el('#verif'); if (!v || OG) return;
     var cap = D.ultima_captura ? fmtAsu(D.ultima_captura) : '';
     v.textContent = cap ? 'Último cambio capturado ' + cap : '';
     try {
@@ -1041,6 +1041,8 @@
   }
   function csvCelda(v) {
     var t = v == null ? '' : String(v);
+    // texto que Excel tomaría como fórmula: se antepone un apóstrofo (los números negativos no se tocan)
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t) && !/^-?\d+(\.\d+)?$/.test(t)) t = "'" + t;
     return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   }
   function csv(cab, filas) {
