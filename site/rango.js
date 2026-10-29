@@ -89,7 +89,7 @@
     if (!b) return null;
     if (!a) {
       for (var i = 0; i < filas.length && !a; i++) if (filas[i].fecha > dd && filas[i].fecha <= dh) a = filas[i];
-      if (!a || a === b && (+d(a.fecha) - +d(dd)) / DIA > TOLERANCIA_DIAS) return null;
+      if (!a || a === b) return null;   // el único dato del rango es el del final: no hay contra qué comparar
       if ((+d(a.fecha) - +d(dd)) / DIA > TOLERANCIA_DIAS) parcial = a.fecha;
     }
     if (!a.precio) return null;

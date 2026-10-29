@@ -797,7 +797,7 @@
       var hasta = hg ? 'sin datos desde ' + fmtIso(hg.aIso) : (sig ? fmtIso(sig.fecha) : 'hoy (sigue vigente)');
       h += '<h3><span class="tt-dot" style="background:' + s.color + '"></span>' + esc(s.name) + '</h3>'
         + '<div><strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : ' por litro') + '</strong></div>'
-        + (r.usd != null ? '<div><span class="f">En dólares:</span> US$ ' + dec(r.usd, 2) + ' por litro <span class="f">(BCP: G. '
+        + (r.usd != null ? '<div><span class="f">En dólares:</span> US$ ' + dec(r.usd, 2) + ' por ' + (PRODS[s.id].meta.unidad === 'kg' ? 'kg' : 'litro') + ' <span class="f">(BCP: G. '
             + dec(r.tc, 2) + ' por US$ al ' + fmtIso(r.tc_fecha) + ')</span></div>' : '')
         + (vistaReal ? '<div><span class="f">En Gs de ' + esc(mesTexto(IPC.base)) + ':</span> G. ' + miles(c.p.v) + ' <span class="f">(IPC del BCP)</span></div>' : '')
         + '<div><span class="f">Vigente:</span> desde ' + fmtIso(r.fecha) + ' hasta ' + hasta + '</div>'
@@ -1624,7 +1624,10 @@
 
   // El anillo de foco de los segmentados aparece solo al navegar con teclado: un click (que enfoca el radio) no lo muestra
   document.addEventListener('pointerdown', function () { document.documentElement.classList.add('con-puntero'); }, true);
-  document.addEventListener('keydown', function () { document.documentElement.classList.remove('con-puntero'); }, true);
+  var TECLAS_NAV = ['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', ' ', 'Escape'];
+  document.addEventListener('keydown', function (ev) {
+    if (TECLAS_NAV.indexOf(ev.key) >= 0) document.documentElement.classList.remove('con-puntero');
+  }, true);
 
   // Metodología: desplegable cerrado; con #metodologia en la URL (o un link a esa ancla) se abre y baja hasta ahí
   function abrirMetodologia() {

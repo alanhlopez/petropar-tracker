@@ -168,7 +168,7 @@ def precios_json(precios: list[dict], ids: set[str], tc: list | None = None) -> 
             "fuente": f["fuente"],
             "urls": [u.strip() for u in f["fuente_url"].split(" | ") if u.strip()],
             "nota": f["nota"],
-            # US$ por litro con la cotización del BCP de la fecha de vigencia (o la última anterior)
+            # US$ por unidad del producto (litro o kg) con la cotización del BCP de la fecha de vigencia (o la última anterior)
             **({"usd": u["usd"], "tc": u["tc"], "tc_fecha": u["tc_fecha"]}
                if (u := usd_por_litro(int(f["precio_gs"]), f["fecha_vigencia"], tc or [])) else {}),
         })

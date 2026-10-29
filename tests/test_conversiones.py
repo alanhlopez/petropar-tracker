@@ -13,6 +13,18 @@ def test_usa_la_cotizacion_del_dia_o_la_ultima_anterior():
     assert cv.cotizacion_en(SERIE, "2024-01-01") is None                       # nunca una posterior
 
 
+def test_cotizacion_de_mas_de_10_dias_no_se_usa():
+    assert cv.cotizacion_en(SERIE, "2024-01-15") == ("2024-01-05", 7270.00)
+    assert cv.cotizacion_en(SERIE, "2024-01-16") is None
+
+
+def test_ipc_con_un_mes_faltante_falla(tmp_path):
+    base = {"fuente": "BCP", "fuente_url": "", "descargado_el": "2026-10-29"}
+    escribir_csv(tmp_path / "ipc.csv", COLS, [{**base, "mes": "2025-11", "ipc": "100"}, {**base, "mes": "2026-01", "ipc": "101"}])
+    with pytest.raises(ValueError, match="falta el mes 2025-12"):
+        cv.ipc_json(tmp_path)
+
+
 def test_usd_por_litro():
     assert cv.usd_por_litro(7262, "2024-01-04", SERIE) == {"usd": round(7262 / 7262.13, 4), "tc": 7262.13, "tc_fecha": "2024-01-03"}
 
@@ -31,10 +43,10 @@ COLS = ["mes", "ipc", "fuente", "fuente_url", "descargado_el"]
 def test_ipc_base_es_el_ultimo_mes(tmp_path):
     escribir_csv(tmp_path / "ipc.csv", COLS, [
         {"mes": "2026-09", "ipc": "150.2", "fuente": "BCP", "fuente_url": "https://www.bcp.gov.py", "descargado_el": "2026-10-29"},
-        {"mes": "2009-01", "ipc": "60.1", "fuente": "BCP", "fuente_url": "https://www.bcp.gov.py", "descargado_el": "2026-10-29"},
+        {"mes": "2026-08", "ipc": "149.6", "fuente": "BCP", "fuente_url": "https://www.bcp.gov.py", "descargado_el": "2026-10-29"},
     ])
     i = cv.ipc_json(tmp_path)
-    assert i["base"] == "2026-09" and i["serie"][0] == ["2009-01", 60.1]
+    assert i["base"] == "2026-09" and i["serie"][0] == ["2026-08", 149.6]
 
 
 def test_sin_ipc_la_vista_queda_desactivada(tmp_path):

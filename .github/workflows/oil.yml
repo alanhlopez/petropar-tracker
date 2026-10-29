@@ -31,14 +31,17 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Bajar Brent, WTI y ULSD
-        env:
-          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
-        run: python -m etl.fetch_oil
-
       # tipo de cambio de referencia del BCP (vista US$ por litro); si el BCP falla, sigue con el petróleo
       - name: Bajar tipo de cambio del BCP
         run: python -m etl.fetch_tipo_cambio || echo "::warning::No se pudo bajar el tipo de cambio del BCP."
+
+      # si la EIA falla, igual se commitea el tipo de cambio y el job falla al final (aviso en Actions)
+      - name: Bajar Brent, WTI y ULSD
+        id: eia
+        continue-on-error: true
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+        run: python -m etl.fetch_oil
 
       - name: Commit si hay datos nuevos
         id: commit
@@ -62,3 +65,10 @@ jobs:
       - name: Avisar a Vercel (Deploy Hook)
         if: steps.commit.outputs.pushed == 'true' && env.VERCEL_DEPLOY_HOOK != '' && github.ref_name == 'main'
         run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK" > /dev/null
+
+      # al final, para no saltear el commit del tipo de cambio ni el Deploy Hook
+      - name: Falló la descarga de la EIA
+        if: steps.eia.outcome == 'failure'
+        run: |
+          echo "::error::No se pudieron bajar los datos de la EIA (ver el paso 'Bajar Brent, WTI y ULSD')."
+          exit 1

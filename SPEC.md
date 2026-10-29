@@ -153,7 +153,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - README con cómo correr local, secrets necesarios y cómo aprobar un PR de precios.
 
 ## v2
-- Fuentes: tipo de cambio PYG/USD (BCP, diario) e IPC (INE, mensual).
+- Fuentes: tipo de cambio PYG/USD (BCP, diario) e IPC (BCP, mensual; carga manual).
 - Vistas del sitio: (c) Gs constantes (IPC), (d) US$ por litro.
 
 ## v2: emblemas privados (CombusPy)

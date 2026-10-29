@@ -6,9 +6,15 @@
   con base en el último mes disponible: valor_real = precio * IPC(base) / IPC(mes).
 """
 import bisect
+from datetime import date
 from pathlib import Path
 
 from etl.io_csv import leer_csv
+
+
+# si la última cotización anterior tiene más de esto, el precio queda sin US$ (no se convierte con un dato viejo:
+# el BCP no publica fines de semana ni feriados, pero un hueco más largo es una falla de la descarga)
+DIAS_MAX_COTIZACION = 10
 
 
 def tipo_cambio(data: Path) -> list[tuple[str, float]]:
@@ -24,7 +30,11 @@ def tipo_cambio(data: Path) -> list[tuple[str, float]]:
 def cotizacion_en(serie: list[tuple[str, float]], fecha: str) -> tuple[str, float] | None:
     """Cotización del día o la última anterior (fines de semana y feriados); None si no hay ninguna antes."""
     i = bisect.bisect_right(serie, (fecha, float("inf"))) - 1
-    return serie[i] if i >= 0 else None
+    if i < 0:
+        return None
+    if (date.fromisoformat(fecha) - date.fromisoformat(serie[i][0])).days > DIAS_MAX_COTIZACION:
+        return None
+    return serie[i]
 
 
 def usd_por_litro(precio_gs: int, fecha: str, serie: list[tuple[str, float]]) -> dict | None:
@@ -57,5 +67,10 @@ def ipc_json(data: Path) -> dict | None:
     meses = [m for m, _ in serie]
     if len(set(meses)) != len(meses):
         raise ValueError("ipc.csv: hay meses repetidos")
+    for a, b in zip(meses, meses[1:]):   # serie continua: un mes faltante dejaría la línea deflactada con un hueco silencioso
+        ay, am = int(a[:4]), int(a[5:])
+        siguiente = f"{ay + (am == 12)}-{am % 12 + 1:02d}"
+        if b != siguiente:
+            raise ValueError(f"ipc.csv: falta el mes {siguiente} (entre {a} y {b})")
     return {"base": meses[-1], "serie": serie, "fuente": filas[-1]["fuente"],
             "fuente_url": filas[-1]["fuente_url"], "descargado_el": max(f["descargado_el"] for f in filas)}

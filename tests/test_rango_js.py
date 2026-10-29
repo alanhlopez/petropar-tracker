@@ -89,3 +89,6 @@ def test_producto_que_empieza_despues_del_rango_va_desde_su_primer_dato():
 def test_unico_dato_al_final_no_tiene_variacion():
     filas = json.dumps([{"fecha": "2026-10-20", "precio": 7330}])
     assert js(f"R.variacion({filas}, '2025-10-29', '2026-10-29', [])") is None
+    # también dentro de la tolerancia de 31 días: nunca "= 0%" con un solo dato
+    filas = json.dumps([{"fecha": "2026-10-10", "precio": 5000}])
+    assert js(f"R.variacion({filas}, '2026-09-29', '2026-10-29', [])") is None
