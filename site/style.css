@@ -370,3 +370,9 @@ td a, .ev a { color: var(--link); }
 .finales .fin-fecha { flex-basis: 100%; font-weight: 700; color: var(--muted); font-size: .78rem; }
 .chart svg:focus { outline: none; }
 .chart svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* el anillo de foco aparece solo navegando con teclado: un click (que enfoca el control) no lo muestra, en ningún grupo */
+.con-puntero :focus-visible, .con-puntero .seg input:focus-visible + span { outline: none !important; }
+.seg-off span { opacity: .4; cursor: not-allowed; }
+.chart .lbl-con { transition: none; }
+.chart .lbl-nota { fill: var(--faint); }

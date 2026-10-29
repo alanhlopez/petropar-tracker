@@ -8,6 +8,7 @@
 
   var DIA = 864e5;
   var MIN_DIAS = 30;          // zoom mínimo: 1 mes
+  var TOLERANCIA_DIAS = 31;   // variación del período: primer dato tardío que todavía cuenta como "al inicio"
   var DIAS_DIARIO = 731;      // petróleo diario si el rango visible es de 2 años o menos; si no, promedio mensual
   var PRESETS = ['1m', '6m', 'ytd', '1a', '5a', '10a', 'todo'];
 
@@ -77,12 +78,23 @@
   }
 
   /* Variación del período visible: precio vigente al FINAL contra el vigente al INICIO del rango
-     (no contra el primer cambio dentro del rango). null si falta alguno o si entre ambos hay un hueco. */
+     (no contra el primer cambio dentro del rango). Si al inicio no hay precio:
+     - el primer dato cae dentro de los primeros TOLERANCIA_DIAS del rango: se usa como inicio (p. ej. "Todo"
+       empieza el 02/01/2009 y Kape 88 el 09/01/2009);
+     - si cae después: variación desde ese primer dato, con desde = su fecha (el sitio aclara "desde mmm-aaaa").
+     null si no hay precio al final, si entre inicio y final hay un hueco, o si el único dato es el del final. */
   function variacion(filas, desde, hasta, huecos) {
+    var dd = iso(desde), dh = iso(hasta), parcial = null;
     var a = vigenteEn(filas, desde, huecos), b = vigenteEn(filas, hasta, huecos);
-    if (!a || !b || !a.precio) return null;
+    if (!b) return null;
+    if (!a) {
+      for (var i = 0; i < filas.length && !a; i++) if (filas[i].fecha > dd && filas[i].fecha <= dh) a = filas[i];
+      if (!a || a === b && (+d(a.fecha) - +d(dd)) / DIA > TOLERANCIA_DIAS) return null;
+      if ((+d(a.fecha) - +d(dd)) / DIA > TOLERANCIA_DIAS) parcial = a.fecha;
+    }
+    if (!a.precio) return null;
     if (a !== b && cruzaHueco(huecos, a.fecha, b.fecha)) return null;
-    return { inicio: a, fin: b, abs: b.precio - a.precio, pct: Math.round((b.precio / a.precio - 1) * 1000) / 10 };
+    return { inicio: a, fin: b, abs: b.precio - a.precio, pct: Math.round((b.precio / a.precio - 1) * 1000) / 10, desde: parcial };
   }
 
   function petroleoDiario(desde, hasta) { return (+d(hasta) - +d(desde)) / DIA <= DIAS_DIARIO; }

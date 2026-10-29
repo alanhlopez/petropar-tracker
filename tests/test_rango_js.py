@@ -35,7 +35,8 @@ def test_variacion_sin_cambios_en_el_rango_es_cero():
 
 
 def test_sin_variacion_antes_del_primer_dato_o_a_traves_de_un_hueco():
-    assert js(f"R.variacion({FILAS}, '2023-01-01', '2026-10-29', [])") is None
+    # antes del primer dato (a más de 31 días): variación desde el primer dato, marcada con su fecha
+    assert js(f"R.variacion({FILAS}, '2023-01-01', '2026-10-29', [])")["desde"] == "2024-01-10"
     hueco = json.dumps([{"desde": "2025-08-01", "hasta": "2026-08-17"}])
     assert js(f"R.variacion({FILAS}, '2025-07-01', '2026-10-29', {hueco})") is None
     # el inicio cae dentro del hueco: no se arrastra el precio anterior
@@ -69,3 +70,22 @@ def test_petroleo_diario_hasta_2_anios_y_nivel_del_eje():
     assert js("R.petroleoDiario('2021-10-29', '2026-10-29')") is False
     assert js("[R.nivelEje('2009-01-02','2026-10-29'), R.nivelEje('2025-10-29','2026-10-29'), R.nivelEje('2026-09-29','2026-10-29')]") \
         == ["anios", "meses", "dias"]
+
+
+def test_primer_dato_dentro_de_los_31_dias_cuenta_como_inicio():
+    # caso Kape 88: "Todo" empieza el 02/01/2009 y su primer dato es del 09/01/2009
+    filas = json.dumps([{"fecha": "2009-01-09", "precio": 3650}, {"fecha": "2026-08-17", "precio": 6990}])
+    v = js(f"R.variacion({filas}, '2009-01-02', '2026-10-29', [])")
+    assert v["inicio"]["precio"] == 3650 and v["pct"] == 91.5 and v["desde"] is None
+
+
+def test_producto_que_empieza_despues_del_rango_va_desde_su_primer_dato():
+    # caso Diésel Mbarete: empieza en 2011, el rango "Todo" en 2009
+    filas = json.dumps([{"fecha": "2011-03-15", "precio": 5000}, {"fecha": "2026-10-28", "precio": 11395}])
+    v = js(f"R.variacion({filas}, '2009-01-02', '2026-10-29', [])")
+    assert v["inicio"]["precio"] == 5000 and v["pct"] == 127.9 and v["desde"] == "2011-03-15"
+
+
+def test_unico_dato_al_final_no_tiene_variacion():
+    filas = json.dumps([{"fecha": "2026-10-20", "precio": 7330}])
+    assert js(f"R.variacion({filas}, '2025-10-29', '2026-10-29', [])") is None

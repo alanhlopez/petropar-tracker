@@ -27,6 +27,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="style.css">
+<!-- Vercel Web Analytics: sin cookies; se activa en el panel de Vercel (Analytics > Enable) -->
+<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 <header class="cab">
@@ -85,6 +87,8 @@
         <div class="seg-g">
           <label><input type="radio" name="vista" value="dual" checked><span>Doble eje</span></label>
           <label><input type="radio" name="vista" value="index"><span>Índice base 100</span></label>
+          <label><input type="radio" name="vista" value="real"><span>Gs constantes</span></label>
+          <label><input type="radio" name="vista" value="usd"><span>US$/litro</span></label>
         </div>
       </fieldset>
       <fieldset class="seg" id="ctl-oil">
@@ -150,7 +154,9 @@
       <summary>Metodología</summary>
       <div>
       <ul>
-        <li><strong>Nominal, no real.</strong> Los precios son nominales: no están ajustados por inflación ni por tipo de cambio. Una suba en guaraníes no implica necesariamente una suba en términos reales. (Las vistas en guaraníes constantes y en US$ por litro quedan para una próxima versión.)</li>
+        <li><strong>Nominal, real y en dólares.</strong> Las vistas "Doble eje" e "Índice base 100" usan precios nominales, sin ajustar por inflación ni por tipo de cambio: una suba en guaraníes no implica necesariamente una suba en términos reales.</li>
+      <li><strong>Gs constantes.</strong> Cada mes, el precio vigente se multiplica por IPC(mes base) / IPC(mes), con el Índice de Precios al Consumidor del Banco Central del Paraguay (BCP); el mes base es el último publicado. Por eso la línea baja mes a mes aunque el precio en guaraníes no cambie: es la pérdida de poder de compra. El IPC se carga a mano desde la publicación del BCP (ver el README del repositorio).</li>
+      <li><strong>US$ por litro.</strong> Cada precio se divide por el tipo de cambio de referencia del BCP (cotización referencial, guaraníes por dólar) del día en que empezó a regir; si ese día no hubo cotización (fin de semana o feriado), la del último día hábil anterior. No se usa nunca una cotización posterior. En esta vista el petróleo va en el mismo eje, convertido de US$ por galón a US$ por litro (1 galón = 3,785 litros).</li>
         <li><strong>Escalas independientes.</strong> En la vista de doble eje, el eje izquierdo (Gs por litro) y el derecho (US$ por galón) tienen escalas independientes. La altura relativa de una línea de combustible y la del petróleo no es comparable: solo importa cuándo suben y bajan.</li>
         <li><strong>Índice base 100.</strong> Pone todas las series visibles en la misma escala relativa. La base es la primera fecha del período elegido en la que ya existen todas las series visibles; en esa fecha cada serie vale 100 (se marca en el gráfico). Cambiar el período, los productos o la serie internacional cambia la base.</li>
         <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA, en US$ por galón. Brent: referencia internacional del crudo (Europa, FOB; la EIA lo publica en US$ por barril y se divide por 42). ULSD (Costa del Golfo, EE.UU.): referencia del diésel refinado; Paraguay importa derivados, no crudo. Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
