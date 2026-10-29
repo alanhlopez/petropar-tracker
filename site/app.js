@@ -878,6 +878,10 @@
     (P.ultimos || []).forEach(function (u) { celdas[u.emblema + '|' + u.categoria] = u; });
     var catDe = {}; (D.productos || []).forEach(function (p) { catDe[p.id] = p.categoria; });
     var pp = {}; (D.tarjetas || []).forEach(function (t) { if (t.precio != null && catDe[t.id]) pp[catDe[t.id]] = t; });
+    // logo a la izquierda del nombre: decorativo (alt vacío), el nombre va siempre en texto
+    function logo(src) {
+      return '<span class="pv-logo">' + (src && /^logos\/[a-z0-9_]+\.(svg|png)$/.test(src) ? '<img src="' + esc(src) + '" alt="" loading="lazy">' : '') + '</span>';
+    }
     function celdaPetropar(c) {
       var t = pp[c];
       if (!t) return '<td class="pv-vacia" data-l="' + esc(c) + '">—</td>';
@@ -898,9 +902,9 @@
     }
     var h = '<div class="pv-wrap"><table class="pv"><thead><tr><th scope="col">Emblema</th>'
       + cats.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>'
-      + '<tr class="pv-ref"><th scope="row">Petropar <span class="pv-sub">precio vigente</span></th>' + cats.map(celdaPetropar).join('') + '</tr>'
+      + '<tr class="pv-ref"><th scope="row"><span class="pv-marca">' + logo('logos/petropar.png') + '<span>Petropar <span class="pv-sub">precio vigente</span></span></span></th>' + cats.map(celdaPetropar).join('') + '</tr>'
       + P.emblemas.map(function (e) {
-        return '<tr><th scope="row">' + esc(e.nombre) + '</th>' + cats.map(function (c) { return celda(e.id, c); }).join('') + '</tr>';
+        return '<tr><th scope="row"><span class="pv-marca">' + logo(e.logo) + '<span>' + esc(e.nombre) + '</span></span></th>' + cats.map(function (c) { return celda(e.id, c); }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>'
       + '<p class="nota-eje pv-pie">Atenuado: precio reportado hace más de ' + P.dias_viejo + ' días. ~ antes de la fecha: vigencia deducida de la nota, sin fecha explícita. '
       + 'Sin dato reciente: ninguna nota con precio en los últimos ' + Math.round(P.dias_max / 30.5) + ' meses para esa categoría. Los precios no se comparan entre sí porque tienen fechas distintas.</p>';

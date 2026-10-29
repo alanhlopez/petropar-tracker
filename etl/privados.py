@@ -4,6 +4,8 @@ Ningún emblema publica precios en un canal propio: los precios salen de notas d
 en data/precios_privados.csv (solo agregar; nunca precios calculados a partir de montos de suba).
 Por cada emblema y categoría se publica el último precio reportado, con su fecha de vigencia y su fuente.
 """
+import re
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -24,11 +26,36 @@ def _fecha(valor: str, donde: str) -> str:
         raise ValueError(f"{donde}: fecha inválida {valor!r}") from None
 
 
+TIPOS = {"diesel", "gasoil", "nafta"}
+
+
+def _tokens(producto: str) -> tuple[frozenset, str | None]:
+    """Nombre comercial normalizado: sin acentos ni guiones, "Euro 5" = "Euro5", y el tipo (diésel/nafta) aparte,
+    porque la prensa escribe "Diésel Evolux", "Evolux Diésel" o solo "Euro5" para el mismo producto."""
+    t = unicodedata.normalize("NFKD", producto.lower()).encode("ascii", "ignore").decode()
+    t = re.sub(r"\(.*?\)", " ", t).replace("-", "")
+    t = re.sub(r"([a-z])\s+(\d)", r"\1\2", t)
+    palabras = set(re.findall(r"[a-z0-9]+", t))
+    tipo = "nafta" if "nafta" in palabras else ("diesel" if palabras & {"diesel", "gasoil"} else None)
+    return frozenset(palabras - TIPOS), tipo
+
+
+def _categoria_por_equivalencia(emblema: str, producto: str, equivalencias: list[dict]) -> str | None:
+    nombre, tipo = _tokens(producto)
+    for e in equivalencias:
+        if e["emblema"] != emblema:
+            continue
+        en, et = _tokens(e["producto_comercial"])
+        if en == nombre and (tipo is None or et is None or tipo == et):
+            return e["categoria"]
+    return None
+
+
 def _orden_cat(categoria: str) -> int:
     return CATEGORIAS.index(categoria) if categoria in CATEGORIAS else len(CATEGORIAS)
 
 
-def _validar(filas: list[dict], emblemas: set[str], equivalencias: dict[tuple[str, str], str]) -> None:
+def _validar(filas: list[dict], emblemas: set[str], equivalencias: list[dict]) -> None:
     vistos = set()
     for i, f in enumerate(filas, start=2):
         donde = f"precios_privados.csv línea {i}"
@@ -38,7 +65,7 @@ def _validar(filas: list[dict], emblemas: set[str], equivalencias: dict[tuple[st
         # categoría vacía: la nota no permite asignarla sin inferir por precio; queda en el historial, no en la tabla
         if f["categoria"] and f["categoria"] not in CATEGORIAS:
             raise ValueError(f"{donde}: categoría {f['categoria']!r} no es una de {CATEGORIAS}")
-        esperada = equivalencias.get((f["emblema"], f["producto_comercial"]))
+        esperada = _categoria_por_equivalencia(f["emblema"], f["producto_comercial"], equivalencias)
         if esperada and f["categoria"] and esperada != f["categoria"]:
             raise ValueError(f"{donde}: {f['producto_comercial']} es {esperada!r} según equivalencias.csv")
         if not f["precio_gs"].isdigit() or int(f["precio_gs"]) <= 0:
@@ -58,9 +85,11 @@ def privados_json(data: Path, hoy: date) -> dict:
     ruta = data / "precios_privados.csv"
     emblemas = leer_csv(data / "emblemas.csv") if (data / "emblemas.csv").exists() else []
     filas = leer_csv(ruta) if ruta.exists() else []
-    equivalencias = {(e["emblema"], e["producto_comercial"]): e["categoria"]
-                     for e in (leer_csv(data / "equivalencias.csv") if (data / "equivalencias.csv").exists() else [])}
+    equivalencias = leer_csv(data / "equivalencias.csv") if (data / "equivalencias.csv").exists() else []
     _validar(filas, {e["emblema"] for e in emblemas}, equivalencias)
+    # categoría vacía en el CSV: se completa con data/equivalencias.csv si el producto está ahí (el CSV no se reescribe)
+    filas = [{**f, "categoria": f["categoria"] or _categoria_por_equivalencia(f["emblema"], f["producto_comercial"], equivalencias) or ""}
+             for f in filas]
 
     historial = [{
         "fecha": f["fecha_vigencia"], "emblema": f["emblema"], "producto": f["producto_comercial"],
@@ -93,7 +122,7 @@ def privados_json(data: Path, hoy: date) -> dict:
         "categorias": CATEGORIAS,
         "dias_viejo": DIAS_VIEJO,
         "dias_max": DIAS_MAX,
-        "emblemas": [{"id": e["emblema"], "nombre": e["nombre"]} for e in emblemas],
+        "emblemas": [{"id": e["emblema"], "nombre": e["nombre"], "logo": e.get("logo") or None} for e in emblemas],
         "ultimos": salida_ultimos,
         "historial": historial,
     }

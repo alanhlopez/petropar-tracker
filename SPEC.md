@@ -150,7 +150,11 @@ Mantener `site/` organizado para sumar secciones sin romper la URL actual.
   - Cada precio muestra "verificado el DD/MM" y la fuente; si tiene más de 7 días, se ve atenuado y con aviso.
 - **Sección "Histórico"**: el gráfico actual de Petropar, más un selector Petropar / privados. En modo privados
   muestra **una categoría a la vez** con varias marcas (nunca todas las combinaciones juntas).
-- Nombres de marca en texto; **no usar logos**.
+- Nombre de marca siempre en texto, con su logo chico a la izquierda (decidido el 29/10/2026; antes: sin logos).
+  Logos en `site/logos/`, sobre fondo blanco para que se vean igual en tema oscuro; se usan solo para identificar
+  al emblema. Origen: favicon oficial de shell.com.py; ícono de copetrol.com.py; ícono de petromax.com.py; ícono
+  de petropar.gov.py; logo de pumaenergy.com (recortado al puma); Petrobras de Wikimedia Commons
+  (Petrobras_horizontal_logo.svg, recortado al "BR").
 - Precio de referencia: lista en **Gran Asunción**. Aclararlo en la página (en el interior puede variar).
 
 ### Datos

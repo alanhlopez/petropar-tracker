@@ -221,3 +221,15 @@ diga otra cosa, se revisa.
 3. Pedido de acceso a la información al MIC (Dirección General de Combustibles): precios minoristas por emblema.
 4. Pedir a fulltanque.net permiso y términos de uso, si se lo quiere usar.
 5. Confirmar dueño actual de Shell (Raízen), Petrobras (licencia) y Puma; razón social de Petromax.
+
+## Categorías decididas por el autor (29/10/2026)
+
+Sin octanaje ni ppm publicados por la marca, el autor asignó por gama del producto (cargado en
+`data/equivalencias.csv`; el ETL completa la categoría de las filas de prensa que la tenían vacía):
+
+- Shell Evolux: diésel común (el más económico de Shell).
+- Petrobras: Diésel Euro 5, diésel común (el más económico); Euro 6, intermedio, **sin categoría** (no entra en
+  común ni premium); Podium, diésel premium (ya estaba por fuente).
+- Petrobras Nafta Grid: nafta 93–95 ("+95", sin confirmar con la marca).
+- Siguen sin categoría: Shell Regular, Super y V-Power Nafta de 2025 y abril de 2026 (las notas no dan octanaje)
+  y Petrobras Prix.

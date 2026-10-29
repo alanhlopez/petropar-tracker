@@ -348,3 +348,9 @@ td a, .ev a { color: var(--link); }
 }
 .pv tbody th { text-transform: none; letter-spacing: 0; font-size: .92rem; color: var(--text); }
 .pv-sub { text-transform: none; letter-spacing: 0; }
+.pv-marca { display: flex; align-items: flex-start; gap: var(--s2); }
+.pv-logo { flex: none; width: 40px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; border-radius: 4px; padding: 2px; }   /* fondo blanco: los logos se ven igual en tema oscuro */
+.pv-logo img { max-width: 100%; max-height: 100%; display: block; }
+.pv-logo:empty { background: none; }
+@media (max-width: 760px) { .pv-marca { align-items: center; } }

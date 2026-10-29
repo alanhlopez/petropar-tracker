@@ -1,6 +1,6 @@
-emblema,nombre,cuota_2025,nota
-shell,Shell,18,Raízen Paraguay S.A. (ex Barcos & Rodados); ver data/reports/relevamiento_emblemas.md
-petrobras,Petrobras,12,Operador 2025-2026 sin confirmar (Copetrol compró Petrobras Paraguay en 2019)
-copetrol,Copetrol,10,Corporación Paraguaya Distribuidora de Derivados de Petróleo S.A.
-puma,Puma Energy,7,Operador 2025-2026 sin confirmar (Impala/Trafigura desde 2020)
-petromax,Petromax,5,Operador sin confirmar con fuente fechada (Imperial S.A.E. según cbonds)
+emblema,nombre,cuota_2025,nota,logo
+shell,Shell,18,Raízen Paraguay S.A. (ex Barcos & Rodados); ver data/reports/relevamiento_emblemas.md,logos/shell.svg
+petrobras,Petrobras,12,Operador 2025-2026 sin confirmar (Copetrol compró Petrobras Paraguay en 2019),logos/petrobras.svg
+copetrol,Copetrol,10,Corporación Paraguaya Distribuidora de Derivados de Petróleo S.A.,logos/copetrol.png
+puma,Puma Energy,7,Operador 2025-2026 sin confirmar (Impala/Trafigura desde 2020),logos/puma.svg
+petromax,Petromax,5,Operador sin confirmar con fuente fechada (Imperial S.A.E. según cbonds),logos/petromax.png

@@ -100,7 +100,7 @@ def test_dos_fuentes_con_valores_distintos_el_mismo_dia_no_son_firmes(data):
 
 
 def test_sin_categoria_queda_en_historial_pero_no_en_la_tabla(data):
-    escribir(data, fila("2026-08-02", "petrobras", "Nafta Grid", "", 7690))
+    escribir(data, fila("2026-08-12", "petrobras", "Prix", "", 5990))
     p = privados_json(data, HOY)
     assert p["ultimos"] == [] and len(p["historial"]) == 1
 
@@ -116,3 +116,19 @@ def test_equivalencias_usan_categorias_de_productos():
     validas = {p["categoria"] for p in leer_csv(DATA / "productos.csv")}
     for e in leer_csv(DATA / "equivalencias.csv"):
         assert e["categoria"] in validas and e["categoria"] in CATEGORIAS, e
+
+
+@pytest.mark.parametrize("producto,categoria", [
+    ("Euro5", "Diésel común"), ("Diesel Euro 5", "Diésel común"), ("Diésel Euro 5", "Diésel común"),
+    ("Grid", "Nafta 93–95"), ("Nafta Grid", "Nafta 93–95"),
+    ("Euro6", ""), ("Prix", ""),   # sin equivalencia: quedan sin categoría
+])
+def test_categoria_vacia_se_completa_con_equivalencias(data, producto, categoria):
+    escribir(data, fila("2026-10-24", "petrobras", producto, "", 9490))
+    assert privados_json(data, HOY)["historial"][0]["categoria"] == categoria
+
+
+def test_mismo_nombre_con_otro_tipo_no_se_confunde(data):
+    # V-Power Diésel es premium; V-Power Nafta no hereda esa categoría
+    escribir(data, fila("2026-10-23", "shell", "V-Power Nafta", "", 9190))
+    assert privados_json(data, HOY)["historial"][0]["categoria"] == ""
