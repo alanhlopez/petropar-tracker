@@ -33,8 +33,9 @@ def agregar_precio(data, linea: str):
 
 def test_sin_petroleo_genera_series_vacias(data):
     datos = bs.construir(data, AHORA)
-    assert datos["petroleo"]["wti"] == {"unidad": "usd_gal", "diario": [], "mensual": []}
-    assert datos["ultimo_dato"]["wti"] is None
+    assert datos["petroleo"]["brent"] == {"unidad": "usd_gal", "diario": [], "mensual": []}
+    assert datos["ultimo_dato"]["brent"] is None
+    assert "wti" not in datos["petroleo"] and "wti" not in datos["ultimo_dato"]
     json.dumps(datos)  # serializable
 
 
@@ -82,16 +83,18 @@ def test_fecha_o_precio_faltante_falla_con_mensaje_claro(data, linea, mensaje):
 
 def test_promedio_mensual_y_diario(data):
     escribir_csv(data / "petroleo.csv", ["fecha", "serie", "valor_usd", "unidad"], [
-        {"fecha": "2026-09-30", "serie": "wti", "valor_usd": "2.0000", "unidad": "usd_gal"},
-        {"fecha": "2026-10-01", "serie": "wti", "valor_usd": "2.0000", "unidad": "usd_gal"},
-        {"fecha": "2026-10-02", "serie": "wti", "valor_usd": "3.0000", "unidad": "usd_gal"},
-        {"fecha": "2026-10-02", "serie": "wti", "valor_usd": "126.00", "unidad": "usd_bbl"},
+        {"fecha": "2026-09-30", "serie": "brent", "valor_usd": "2.0000", "unidad": "usd_gal"},
+        {"fecha": "2026-10-01", "serie": "brent", "valor_usd": "2.0000", "unidad": "usd_gal"},
+        {"fecha": "2026-10-02", "serie": "brent", "valor_usd": "3.0000", "unidad": "usd_gal"},
+        {"fecha": "2026-10-02", "serie": "brent", "valor_usd": "126.00", "unidad": "usd_bbl"},
+        {"fecha": "2026-10-02", "serie": "wti", "valor_usd": "2.9000", "unidad": "usd_gal"},  # no se publica
         {"fecha": "2026-10-02", "serie": "ulsd", "valor_usd": "3.1000", "unidad": "usd_gal"},
     ])
     oil = bs.construir(data, AHORA)["petroleo"]
-    assert oil["wti"]["mensual"] == [["2026-09-01", 2.0], ["2026-10-01", 2.5]]  # usd_bbl no se mezcla
-    assert oil["wti"]["diario"][-1] == ["2026-10-02", 3.0]
+    assert oil["brent"]["mensual"] == [["2026-09-01", 2.0], ["2026-10-01", 2.5]]  # usd_bbl no se mezcla
+    assert oil["brent"]["diario"][-1] == ["2026-10-02", 3.0]
     assert oil["ulsd"]["mensual"] == [["2026-10-01", 3.1]]
+    assert set(oil) == {"brent", "ulsd"}
 
 
 def test_solo_eventos_con_mostrar_true(data):

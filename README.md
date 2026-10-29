@@ -1,7 +1,7 @@
 # Petropar tracker
 
 Serie histórica de los precios de surtidor de Petropar (desde 2009-01-02) comparada con el
-petróleo WTI y el diésel ULSD, sombreada por período presidencial. Se actualiza sola: un
+petróleo Brent y el diésel ULSD, sombreada por período presidencial. Se actualiza sola: un
 scraper revisa la página de Petropar cada 6 h y, si hay cambio, abre un Pull Request que una
 persona aprueba antes de publicar.
 

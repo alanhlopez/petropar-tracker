@@ -157,6 +157,7 @@ legend { font-size: .72rem; font-weight: 500; color: var(--faint); padding: 0 0 
 .seg span:hover { color: var(--text); }
 .seg input:checked + span { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.14), 0 0 0 .5px rgba(0,0,0,.05); }
 .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.con-puntero .seg input:focus-visible + span { outline: none; }
 
 /* chips de producto (botones de alternancia) */
 .chips { margin-bottom: var(--s3); }
@@ -266,7 +267,7 @@ td a, .ev a { color: var(--link); }
 .hoy-pie { margin: var(--s2) 0 0; font-size: .82rem; }
 .lista-hoy { --cols: 12px minmax(0, 1fr) 6.6rem 4.6rem 6.2rem; border-top: 1px solid var(--text); }
 @media (min-width: 1000px) {
-  .lista-hoy { display: grid; grid-auto-flow: column; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(var(--filas, 4), auto); column-gap: var(--s5); }
+  .lista-hoy { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--s5); align-items: start; }
 }
 .fila {
   align-content: start;

@@ -1,6 +1,7 @@
 """Precios internacionales diarios desde la EIA (API v2) -> data/petroleo.csv.
 
-- RWTC (WTI Cushing) llega en $/BBL: se guarda en usd_bbl y también ÷42 en usd_gal.
+- RWTC (WTI Cushing) y RBRTE (Brent Europa, FOB) llegan en $/BBL: se guardan en usd_bbl y también
+  ÷42 en usd_gal. El sitio muestra Brent; WTI se sigue guardando pero no se muestra.
 - EER_EPD2DXL0_PF4_RGC_DPG (ULSD Costa del Golfo) llega en $/GAL: se guarda en usd_gal.
 
 Incremental: pide desde la última fecha guardada de cada serie (o 2009-01-01 la
@@ -23,8 +24,13 @@ GALONES_POR_BARRIL = 42
 # serie EIA -> (serie nuestra, unidad que tiene que devolver la API)
 SERIES = {
     "RWTC": ("wti", "$/BBL"),
+    "RBRTE": ("brent", "$/BBL"),
     "EER_EPD2DXL0_PF4_RGC_DPG": ("ulsd", "$/GAL"),
 }
+
+
+# series en barriles: se guardan en usd_bbl y en usd_gal (÷42)
+EN_BARRILES = {serie for serie, unidad in SERIES.values() if unidad == "$/BBL"}
 
 
 class ErrorEIA(Exception):
@@ -87,9 +93,9 @@ def convertir(serie_eia: str, filas_eia: list[dict]) -> list[dict]:
         except (TypeError, ValueError):
             raise ErrorEIA(f"{serie_eia} {f.get('period')}: valor no numérico {f['value']!r}") from None
         fecha = f["period"]
-        if serie == "wti":
-            filas.append({"fecha": fecha, "serie": "wti", "valor_usd": f"{valor:.2f}", "unidad": "usd_bbl"})
-            filas.append({"fecha": fecha, "serie": "wti",
+        if serie in EN_BARRILES:
+            filas.append({"fecha": fecha, "serie": serie, "valor_usd": f"{valor:.2f}", "unidad": "usd_bbl"})
+            filas.append({"fecha": fecha, "serie": serie,
                           "valor_usd": f"{valor / GALONES_POR_BARRIL:.4f}", "unidad": "usd_gal"})
         else:
             filas.append({"fecha": fecha, "serie": serie, "valor_usd": f"{valor:.4f}", "unidad": "usd_gal"})
@@ -101,8 +107,8 @@ def actualizar(api_key: str, existentes: list[dict]) -> list[dict]:
     claves = {(f["fecha"], f["serie"], f["unidad"]) for f in existentes}
     nuevas = []
     for serie_eia, (serie, _) in SERIES.items():
-        # desde la última fecha de la unidad más atrasada (WTI se guarda en usd_bbl y usd_gal)
-        unidades = {"wti": ("usd_bbl", "usd_gal")}.get(serie, ("usd_gal",))
+        # desde la última fecha de la unidad más atrasada (las series en barriles se guardan en usd_bbl y usd_gal)
+        unidades = ("usd_bbl", "usd_gal") if serie in EN_BARRILES else ("usd_gal",)
         ultimas = [max((f["fecha"] for f in existentes if (f["serie"], f["unidad"]) == (serie, u)), default=None)
                    for u in unidades]
         inicio = INICIO if None in ultimas else min(ultimas)

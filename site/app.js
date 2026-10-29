@@ -13,7 +13,9 @@
     glp_kg: 'Gas kg', glp_litro: 'Gas litro'
   };
   var PRES_CORTO = { 'Fernando Lugo': 'Lugo', 'Federico Franco': 'Franco', 'Horacio Cartes': 'Cartes', 'Mario Abdo Benítez': 'Abdo', 'Santiago Peña': 'Peña' };
-  var OIL_NOMBRE = { wti: 'WTI', ulsd: 'Diésel ULSD' };
+  // series internacionales que muestra el sitio (WTI se guarda en petroleo.csv pero no se publica)
+  var OIL_NOMBRE = { brent: 'Brent', ulsd: 'Diésel ULSD' };
+  var OIL_FUENTE = { brent: 'Brent (Europa, FOB)', ulsd: 'diésel ULSD (Costa del Golfo, EE.UU.)' };
   var TIPO_TXT = {
     max_o_sugerido_venta_publico: 'Precio máximo y/o sugerido de venta al público (referencia, no necesariamente el precio efectivo de surtidor)',
     venta_publico: 'Venta al público'
@@ -26,10 +28,10 @@
   var OG = false;
   try { OG = new URLSearchParams(location.search).get('og') === '1'; } catch (e) { /* sin parámetros */ }
   if (OG) document.documentElement.classList.add('modo-og');
-  var state = { vista: 'dual', oil: 'wti', rango: 'all', tab: 'liq', sel: null };
+  var state = { vista: 'dual', oil: 'brent', rango: 'all', tab: 'liq', sel: null };
   var D = null;          // datos crudos
   var PRODS = {};        // id -> {meta, segs}
-  var OIL = {};          // wti|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
+  var OIL = {};          // brent|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
   var XMIN_ALL, XMAX;
   var TRAMO = null;      // {a, b}: tramo con tipo_precio = max_o_sugerido_venta_publico (derivado de los datos)
 
@@ -138,7 +140,7 @@
       p.segs.sort(function (u, v) { return u.pts[0].d - v.pts[0].d; });
     });
 
-    ['wti', 'ulsd'].forEach(function (k) {
+    ['brent', 'ulsd'].forEach(function (k) {
       var o = (D.petroleo || {})[k];
       if (!o) return;
       OIL[k] = {
@@ -158,7 +160,7 @@
     var o = OIL[k];
     if (!o || !o.mensual.length) return null;
     var last = o.mensual[o.mensual.length - 1].d;
-    return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'wti' ? 'WTI' : 'ULSD', color: 'var(--oil)',
+    return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'brent' ? 'Brent' : 'ULSD', color: 'var(--oil)',
       segs: [{ pts: o.mensual, end: last }], gaps: [] };
   }
   function gapAt(s, t) {
@@ -488,13 +490,14 @@
     // (Sin <title>: el rect de interacción quedaría encima; el cuadro emergente propio explica el hueco.)
     var gm = g.append('g'), nGapMarks = 0, nNoFirme = 0;
     lista.forEach(function (s) {
-      var marcado = {}, rr = mobile ? 5 : 6;
-      function rombo(d, v, firme) {
+      var marcado = {}, rr = mobile ? 3.5 : 4;
+      // rombo chico y sin relleno (solo contorno) para no competir con las líneas; si es firme o no lo dice el cuadro emergente
+      function rombo(d, v) {
         if (d < xmin || d > xmax) return;
         nGapMarks++;
         var cx = x(d), cy = yOf(s, v);
         gm.append('path').attr('d', 'M' + cx + ',' + (cy - rr) + 'l' + rr + ',' + rr + 'l' + (-rr) + ',' + rr + 'l' + (-rr) + ',' + (-rr) + 'z')
-          .style('fill', firme ? s.color : 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
+          .style('fill', 'var(--bg)').style('stroke', s.color).attr('stroke-width', 1.5);
       }
       // hueco: último punto conocido antes (a) y primero después (b); nunca se arrastra el precio
       (s.gaps || []).forEach(function (hg) {
@@ -504,8 +507,8 @@
           if (r.fecha <= hg.aIso) antes = r;
           if (!despues && hg.bIso && r.fecha >= hg.bIso) despues = r;
         });
-        if (antes) { rombo(hg.a, antes.precio, antes.firme !== false); marcado[+hg.a] = true; if (antes.fecha === hg.aIso) marcado[+parse(antes.fecha)] = true; }
-        if (despues) { rombo(parse(despues.fecha), despues.precio, despues.firme !== false); marcado[+parse(despues.fecha)] = true; }
+        if (antes) { rombo(hg.a, antes.precio); marcado[+hg.a] = true; if (antes.fecha === hg.aIso) marcado[+parse(antes.fecha)] = true; }
+        if (despues) { rombo(parse(despues.fecha), despues.precio); marcado[+parse(despues.fecha)] = true; }
       });
       s.segs.forEach(function (sg) {
         sg.pts.forEach(function (p) {
@@ -724,7 +727,7 @@
   function leyendaHtml(f) {
     var h = '';
     if (f.nofirme) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Punto no firme (precio no verificado o fecha por confirmar)</span>';
-    if (f.hueco) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><path d="M7,1 L13,7 L7,13 L1,7z" fill="currentColor"/></svg>Borde de un hueco sin datos</span>';
+    if (f.hueco) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><path d="M7,3 L11,7 L7,11 L3,7z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Borde de un hueco sin datos</span>';
     if (f.hito) h += '<span class="it"><svg width="22" height="10" aria-hidden="true"><line x1="1" x2="21" y1="5" y2="5" stroke="currentColor" style="color:var(--hito)" stroke-width="1.5" stroke-dasharray="6 4"/></svg>Hito</span>';
     if (f.banda || f.tri) h += '<span class="it"><svg width="34" height="14" aria-hidden="true"><defs><pattern id="lgp" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" style="color:var(--promo)" stroke-width="2"/></pattern></defs><rect x="0" y="0" width="18" height="12" fill="url(#lgp)" stroke="currentColor" style="color:var(--promo)"/><path d="M26,12 l5,-9 l5,9z" fill="currentColor" style="color:var(--promo)" transform="translate(-4,0)"/></svg>Promoción o baja temporal (' + (f.banda && f.tri ? 'banda con fecha de fin; ▲ si no la tiene' : (f.banda ? 'banda con trama' : '▲ sobre el eje')) + ')</span>';
     if (f.tramo) h += '<span class="it"><svg width="18" height="14" aria-hidden="true"><defs><pattern id="lgm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" style="color:var(--muted)" stroke-width="1"/></pattern></defs><rect width="18" height="12" fill="url(#lgm)" stroke="currentColor" style="color:var(--faint)" stroke-width="0.5"/></svg>Precio máximo/sugerido (trama)</span>';
@@ -807,8 +810,8 @@
   var UNI = { litro: 'L', kg: 'kg' };
   /* Lista compacta de "Precios hoy": una fila por producto, todo en un solo bloque. Todo viene de data.tarjetas
      (precio, cambio.flecha, vigente_desde, etc.); acá solo se formatea. GLP: una fila con kg y litro.
-     Orden: el de data.tarjetas. En desktop ancho la lista va en 2 columnas que se llenan por columnas (grid por columnas:
-     primero baja la columna izquierda y después la derecha), así el orden de lectura es el de data.tarjetas. */
+     Orden: el de data.tarjetas. Dos bloques .col-hoy (mitad de arriba y de abajo): en desktop van lado a lado, con alturas
+     de fila independientes; en celular uno debajo del otro, así el orden de lectura es el de data.tarjetas. */
   function renderLista() {
     var box = el('#lista-hoy'); if (!box) return;
     HOY = hoyAsuncion();
@@ -828,7 +831,7 @@
         filas.push({ id: t.id, color: cvar(t.id), nombre: nom[t.id] || t.id, items: [t] });
       }
     });
-    box.innerHTML = filas.map(function (f) {
+    var html = filas.map(function (f) {
       var its = f.items, main = its[0];
       // precio principal en una línea; en GLP el precio por litro va debajo, como texto secundario
       var pr = function (x) {
@@ -854,8 +857,10 @@
         + '<span class="f-precio">' + precios + '</span>'
         + cam + '<span class="f-meta">' + meta + '</span>'
         + '<span class="sr-only"> — ver en el gráfico histórico</span></button>';
-    }).join('');
-    box.style.setProperty('--filas', Math.ceil(filas.length / 2));   // 2 columnas en desktop: la izquierda lleva la mitad de arriba
+    });
+    // dos columnas independientes (cada una con sus propias alturas de fila): la izquierda lleva la mitad de arriba
+    var mitad = Math.ceil(html.length / 2);
+    box.innerHTML = '<div class="col-hoy">' + html.slice(0, mitad).join('') + '</div><div class="col-hoy">' + html.slice(mitad).join('') + '</div>';
     box.addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('.fila') : null;
       if (b) irAlGrafico(b.getAttribute('data-id'));
@@ -992,7 +997,7 @@
   function wireControls() {
     [['vista', 'vista'], ['oil', 'oil'], ['rango', 'rango']].forEach(function (c) {
       document.querySelectorAll('input[name=' + c[0] + ']').forEach(function (i) {
-        i.addEventListener('change', function () { if (i.checked) { state[c[1]] = i.value; render(); } });
+        i.addEventListener('change', function () { if (i.checked) { state[c[1]] = i.value; if (c[0] === 'oil') textoOil(); render(); } });
       });
     });
     [['liq', 'glp'], ['glp', 'liq']].forEach(function (pair) {
@@ -1017,12 +1022,16 @@
     ro.observe(document.body);
   }
 
+  // Frescura y pie de fuentes nombran solo la serie internacional activa (nunca una serie fija)
+  function textoOil() {
+    var u = D.ultimo_dato || {}, k = state.oil, fr = el('#frescura'), pf = el('#fuente-oil');
+    fr.textContent = k !== 'none' && u[k] ? 'Petróleo (EIA): ' + OIL_NOMBRE[k] + ' al ' + fmtIso(u[k]) + '.' : '';
+    if (pf) pf.textContent = k === 'none' ? 'Brent (Europa, FOB) o diésel ULSD (Costa del Golfo, EE.UU.), según la serie elegida'
+      : OIL_FUENTE[k] + (u[k] ? ', al ' + fmtIso(u[k]) : '');
+  }
   function textos() {
     var u = D.ultimo_dato || {};
-    var o = [];
-    if (u.wti) o.push('WTI al ' + fmtIso(u.wti));
-    if (u.ulsd) o.push('ULSD al ' + fmtIso(u.ulsd));
-    el('#frescura').textContent = o.length ? 'Petróleo (EIA): ' + o.join(', ') + '.' : '';
+    textoOil();
     var pe = u.petropar ? 'Precios Petropar al ' + fmtIso(u.petropar) + '. ' : '';
     if (D.generado) el('#generado').textContent = pe + 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
     var hu = (D.productos || []).filter(function (p) { return (p.huecos || []).length; }).map(function (p) {
@@ -1126,10 +1135,10 @@
 
     var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar' : 'Precios de combustibles de Petropar y precio del petróleo';
     var subt = state.tab === 'glp' ? 'Guaraníes por kg y por litro, nominal'
-      : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100' : '; petróleo en US$ por galón (eje derecho, escala independiente)') : '');
+      : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100 con ' + o.oil.short : '; ' + o.oil.short + ' en US$ por galón (eje derecho, escala independiente)') : '');
     var u = D.ultimo_dato || {};
-    var fuente = 'Fuente: Petropar (respuesta AIP N° 90150, prensa y página oficial)' + (o.oil ? '; U.S. Energy Information Administration (EIA)' : '') + '.';
-    var fecha = 'Datos al ' + fmtIso(u.petropar || iso(new Date())) + (o.oil && u.wti ? ' (petróleo al ' + fmtIso(u.wti) + ')' : '') + ' · combuspy-tracker.vercel.app';
+    var fuente = 'Fuente: Petropar (respuesta AIP N° 90150, prensa y página oficial)' + (o.oil ? '; U.S. Energy Information Administration (EIA), ' + OIL_FUENTE[o.oil.key] : '') + '.';
+    var fecha = 'Datos al ' + fmtIso(u.petropar || iso(new Date())) + (o.oil && u[o.oil.key] ? ' (' + o.oil.short + ' al ' + fmtIso(u[o.oil.key]) + ')' : '') + ' · combuspy-tracker.vercel.app';
     var HC = 96, HP = 64, H = HC + sh + HP, k = 2;
     var cv = document.createElement('canvas');
     cv.width = W * k; cv.height = H * k;
@@ -1162,7 +1171,7 @@
     if (OG) {
       var u = D.ultimo_dato || {}, pf = document.createElement('p');
       pf.className = 'og-fuente';
-      pf.textContent = 'Gs por litro (nominal) y petróleo WTI en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
+      pf.textContent = 'Gs por litro (nominal) y crudo ' + OIL_NOMBRE[state.oil] + ' en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
         + fmtIso(u.petropar || '') + '. combuspy-tracker.vercel.app';
       el('#chart-liq').after(pf);
     }
@@ -1180,6 +1189,10 @@
     } catch (e) { /* sin parámetros */ }
     render();
   }
+
+  // El anillo de foco de los segmentados aparece solo al navegar con teclado: un click (que enfoca el radio) no lo muestra
+  document.addEventListener('pointerdown', function () { document.documentElement.classList.add('con-puntero'); }, true);
+  document.addEventListener('keydown', function () { document.documentElement.classList.remove('con-puntero'); }, true);
 
   initTema();
   fetch('data.json', { cache: 'no-cache' })

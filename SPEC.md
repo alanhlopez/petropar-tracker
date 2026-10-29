@@ -12,7 +12,8 @@ que se actualiza sola cuando Petropar cambia precios — con aprobación humana 
 | Precios Petropar vigentes (control cruzado) | https://www.petropar.gov.py/wp-content/price/index.html (HTML estático, sin fecha de vigencia, sin charset) | cada 6 h |
 | Histórico Petropar 2009-01-02 → 2024-12-31 (oficial) | Respuesta AIP N° 90150 de Petropar (17-03-2025): `data/raw/petropar_AIP_90150.pdf` = https://informacionpublica.paraguay.gov.py/public/2025/1742301348_1_RespuestaSolicitudN90150.pdf, parseado en `data/raw/petropar_historico_oficial_2009_2024.csv` | única |
 | Histórico Petropar desde 2025-01-01 | `data/raw/petropar_precios_v0.csv` (prensa y planilla, reconstruido a mano, formato ancho) | manual |
-| WTI diario (US$/bbl) | EIA API v2, serie RWTC | diario |
+| Brent diario (US$/bbl) | EIA API v2, serie RBRTE (Europe Brent Spot Price FOB) | diario |
+| WTI diario (US$/bbl) | EIA API v2, serie RWTC (se guarda, no se muestra en el sitio) | diario |
 | Diésel ULSD Costa del Golfo (US$/gal) | EIA API v2 | diario |
 
 Todo lo de `data/raw/` está congelado y es de solo lectura (los tests verifican su hash).
@@ -34,7 +35,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   - `nota`: aclaraciones (lo que en el histórico estaba entre paréntesis, en estado o en fuente).
   - Correcciones de filas existentes: solo con aprobación explícita, registradas en `data/correcciones_aprobadas.csv` (fecha_original, fecha_nueva, estado, fecha_estado, fuente, fuente_url, nota, aprobado_el; nunca cambian el precio) y en un commit propio que lo diga. Las filas agregadas por el scraper se corrigen igual, pero se registran en `data/correcciones_capturas.csv` (fecha_vigencia, product_id, captured_at, precio_gs, estado, fecha_estado, nota, aprobado_el; el precio registrado tiene que coincidir con la fila).
   - Una fila está "firme" solo si estado = verificado y fecha_estado = confirmada; cualquier otra combinación se marca en el sitio.
-- `data/petroleo.csv`: fecha, serie (wti|ulsd), valor_usd, unidad — dato diario.
+- `data/petroleo.csv`: fecha, serie (brent|wti|ulsd), valor_usd, unidad — dato diario.
 - `data/presidentes.csv`: nombre, inicio, fin (intervalo [inicio, fin): el `fin` de uno es el `inicio` del siguiente; `fin` vacío = mandato en curso)
   - Presidentes: Lugo (2008-08-15), Franco (2012-06-22), Cartes (2013-08-15), Abdo (2018-08-15), Peña (2023-08-15).
 - `data/eventos.csv`: fecha, fecha_fin, tipo (hito|promo), etiqueta, mostrar (true|false), fuente, fuente_url, nota (ej. pandemia OMS 2020-03-11 / 2023-05-05). Las bajas temporales o promociones que no figuran en el documento oficial van acá como `promo`, no a la serie principal. `mostrar=false` para promos de un día en pocas estaciones (2016–2017): quedan documentadas pero no se dibujan.
@@ -60,9 +61,9 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
      - **(a) Estructura — falla dura** (exit 1, resumen con `estado: error`): una página no responde (3 intentos), no está la tabla o su encabezado cambió, falta alguno de los 8 productos esperados, aparece un producto desconocido o repetido, o un precio o fecha no se puede convertir.
      - **(b) Plausibilidad — no bloquea; el PR va con etiqueta `revisar`:** precio entre 2.000 y 30.000; múltiplo de 5 (solo diésel y naftas: el GLP por kg es 7.374); Mbarete > Porã y Aratiri > Oikoite > Kape; variación contra el precio anterior menor a ±25 %; precio igual en las dos páginas (control cruzado); vigencia publicada posterior al último registro (`vigencia_vieja`); si no lo es y el histórico tiene otro precio vigente en esa fecha, `conflicto_historico` (caso real: Ecoflex 7.330 "desde 13/08/2024" contra 7.730 del AIP 90150); sin cambio de precio, la vigencia publicada coincide con la fecha en que empezó ese precio en el histórico, si esa fecha está confirmada (`vigencia_discrepante`; caso real: el 28/10/2026 Petropar seguía publicando 24/09 para los diésel ya subidos el 28/10).
      - **(c) Frescura:** si no hubo una corrida exitosa del scraper en 24 h, aviso (lo controla el workflow, no el script). Además, si el `data.json` publicado en producción (variable `SITIO_URL`) tiene más de 48 h de atraso respecto del de main, issue `deploy-atrasado` (Vercel dejó de desplegar).
-2. `etl/fetch_oil.py`: baja WTI y ULSD de la EIA (API key en secret `EIA_API_KEY`), incremental.
+2. `etl/fetch_oil.py`: baja Brent, WTI y ULSD de la EIA (API key en secret `EIA_API_KEY`), incremental.
    - Endpoint `/v2/petroleum/pri/spt/data/`, `frequency=daily`, `data[0]=value`, filtro por `facets[series][]`.
-   - `RWTC` (WTI Cushing) llega en `$/BBL`; se guarda tal cual (unidad `usd_bbl`) y también ÷42 (unidad `usd_gal`).
+   - `RBRTE` (Brent) y `RWTC` (WTI Cushing) llegan en `$/BBL` (se valida la unidad); se guardan tal cual (unidad `usd_bbl`) y también ÷42 (unidad `usd_gal`). Carga inicial desde 2009-01-01 e incremental.
    - `EER_EPD2DXL0_PF4_RGC_DPG` (ULSD Costa del Golfo) llega en `$/GAL`; se guarda con unidad `usd_gal`.
    - Validar `units` de cada serie (`$/BBL` y `$/GAL`) y fallar si no coincide.
    - Carga inicial con `start=2009-01-01` (acompaña el inicio de la serie Petropar); después incremental con `start` = última fecha guardada por serie (sin duplicar).
@@ -89,7 +90,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Estilo editorial (referencias: Our World in Data, FT, El Surti): menos cajas, más tipografía y alineación. Una sola familia (Inter), escala de espaciado 4/8/16/24/32/48, ancho máximo 1100 px centrado, sin emojis en la interfaz.
 - Pie: fuentes (Petropar – AIP N° 90150, prensa, página oficial; EIA con atribución), link a la metodología, autor, última actualización y link al repo.
 - Metadatos para compartir: `<title>`, description, `og:image` 1200×630 (`site/og.png`, captura del gráfico con `?og=1` generada por `etl/og_image.py` con Chrome headless en `sitio.yml`) y favicon simple (`site/favicon.svg`, sin logos de marcas).
-- Gráfico de líneas escalonadas (precios administrados) + petróleo en línea de puntos gris medio (claro `#52514e`, oscuro `#9a998f`; trazo fino para no dominar sobre los combustibles; promedio mensual; el tooltip muestra el valor diario del día más cercano). Etiqueta final del petróleo con unidad ("WTI US$ 2,41/gal").
+- Gráfico de líneas escalonadas (precios administrados) + petróleo en línea de puntos gris medio (claro `#52514e`, oscuro `#9a998f`; trazo fino para no dominar sobre los combustibles; promedio mensual; el tooltip muestra el valor diario del día más cercano). Etiqueta final del petróleo con unidad ("Brent US$ 2,41/gal"). Ningún texto nombra una serie fija: eje derecho, etiqueta final, tooltip, frescura, PNG y pie de fuentes dicen la serie activa.
 - Huecos: nunca arrastrar un precio a través de un período sin fuente. El hueco (desde `datos_hasta` hasta la fila siguiente) se dibuja sin línea, con marcadores en el último punto conocido y en el primero posterior, y tooltip "sin datos entre X e Y".
 - Tramo 2009–2014 (`tipo_precio = max_o_sugerido_venta_publico`, rango derivado de los datos): trama sutil de fondo con la etiqueta "Precio máximo/sugerido"; explicado en tooltip y nota metodológica.
 - Hitos en color neutro (tinta secundaria), con etiquetas en una franja superior reservada que no se superpone a los datos. Promos: banda con trama entre inicio y fin; sin fin, marcador ▲ sobre el eje X.
@@ -97,7 +98,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Sombreado por presidente (5 mandatos desde Lugo), líneas verticales de eventos (pandemia) y marcas de promociones (`tipo = promo`, solo `mostrar = true`; con `fecha_fin` como franja), distinguibles de los hitos.
 - GLP (kg y litro) NO va en el eje de los combustibles líquidos: otro producto, otra unidad y otra escala. Va en un gráfico chico aparte o en una pestaña.
 - Selector de vista: (a) doble eje Gs / US$ por galón, (b) índice base 100.
-- Selector de productos y de serie internacional (WTI / ULSD).
+- Selector de productos y de serie internacional: Brent (por defecto) / ULSD / Ocultar. WTI se guarda en `petroleo.csv` pero no se publica en `data.json`. Nota metodológica: "Brent: referencia internacional del crudo. ULSD (Costa del Golfo, EE.UU.): referencia del diésel refinado; Paraguay importa derivados, no crudo."
 - Chips de productos con estado activo (relleno suave + ✓) e inactivo (contorno gris, texto atenuado) claro; el anillo es solo para foco de teclado.
 - "Ver datos en tabla" (desplegable al final): histórico completo, filtrable por producto y años.
 - Tooltip con precio, fecha de vigencia, tipo_precio ("máximo y/o sugerido" vs "venta al público"), estado, fecha_estado y link a la fuente.

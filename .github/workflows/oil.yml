@@ -1,4 +1,5 @@
 # Precios internacionales diarios (EIA): commit directo a main, sin revisión (dato de API oficial).
+# El cron corre en main; a mano (workflow_dispatch) commitea en la rama elegida, para probar series nuevas antes de mergear.
 # También regenera site/data.json: un push con GITHUB_TOKEN no dispara sitio.yml.
 name: oil
 
@@ -30,7 +31,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Bajar WTI y ULSD
+      - name: Bajar Brent, WTI y ULSD
         env:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
         run: python -m etl.fetch_oil
@@ -48,8 +49,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/petroleo.csv site/data.json
           git commit -m "Petróleo: datos EIA al $(date -u +%F)"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
           echo "pushed=true" >> "$GITHUB_OUTPUT"
 
       # Deploy Hook de Vercel (salida c del README): desactivado hasta que exista el secret.

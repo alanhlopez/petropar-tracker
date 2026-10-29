@@ -19,7 +19,7 @@
 <meta property="og:image" content="https://combuspy-tracker.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Gráfico de los precios de Petropar desde 2009 comparados con el petróleo WTI">
+<meta property="og:image:alt" content="Gráfico de los precios de Petropar desde 2009 comparados con el crudo Brent">
 <meta property="og:locale" content="es_PY">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -66,7 +66,7 @@
   <div class="sec-cab">
     <div>
       <h2 id="h-hist" tabindex="-1">Histórico</h2>
-      <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales. <span class="frescura" id="frescura"></span></p>
+      <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo Brent o el diésel ULSD internacional, sobre los períodos presidenciales. <span class="frescura" id="frescura"></span></p>
     </div>
     <button type="button" class="btn-linea" id="btn-png" title="Imagen PNG en tema claro, con título, fuente y fecha">
       <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -90,7 +90,7 @@
       <fieldset class="seg" id="ctl-oil">
         <legend>Serie internacional</legend>
         <div class="seg-g">
-          <label><input type="radio" name="oil" value="wti" checked><span>WTI</span></label>
+          <label><input type="radio" name="oil" value="brent" checked><span>Brent</span></label>
           <label><input type="radio" name="oil" value="ulsd"><span>ULSD</span></label>
           <label><input type="radio" name="oil" value="none"><span>Ocultar</span></label>
         </div>
@@ -136,9 +136,9 @@
       <li><strong>Nominal, no real.</strong> Los precios son nominales: no están ajustados por inflación ni por tipo de cambio. Una suba en guaraníes no implica necesariamente una suba en términos reales. (Las vistas en guaraníes constantes y en US$ por litro quedan para una próxima versión.)</li>
       <li><strong>Escalas independientes.</strong> En la vista de doble eje, el eje izquierdo (Gs por litro) y el derecho (US$ por galón) tienen escalas independientes. La altura relativa de una línea de combustible y la del petróleo no es comparable: solo importa cuándo suben y bajan.</li>
       <li><strong>Índice base 100.</strong> Pone todas las series visibles en la misma escala relativa. La base es la primera fecha del período elegido en la que ya existen todas las series visibles; en esa fecha cada serie vale 100 (se marca en el gráfico). Cambiar el período, los productos o la serie internacional cambia la base.</li>
-      <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA (WTI Cushing en US$ por barril dividido 42, o diésel ULSD de la Costa del Golfo, en US$ por galón). Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
+      <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA, en US$ por galón. Brent: referencia internacional del crudo (Europa, FOB; la EIA lo publica en US$ por barril y se divide por 42). ULSD (Costa del Golfo, EE.UU.): referencia del diésel refinado; Paraguay importa derivados, no crudo. Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
       <li><strong>Último cambio.</strong> En "Precios hoy", el monto (▲ sube, ▼ baja) es la diferencia con el precio anterior con fuente. No se muestra si el precio actual está por confirmar, si el anterior tiene más de 6 meses o si entre los dos hay un período sin datos.</li>
-      <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente o donde no hay fila con fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024; las filas de GLP que quedan aisladas se ven como un punto) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo en el último punto conocido y otro en el primero posterior (relleno si es firme, hueco si no); al pasar el cursor por el hueco el cuadro emergente indica entre qué fechas no hay datos. <span id="nota-huecos"></span></li>
+      <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente o donde no hay fila con fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024; las filas de GLP que quedan aisladas se ven como un punto) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo chico (solo contorno) en el último punto conocido y otro en el primero posterior; al pasar el cursor por el hueco el cuadro emergente indica entre qué fechas no hay datos. <span id="nota-huecos"></span></li>
       <li><strong>Fuentes.</strong> Hasta 2024: respuesta oficial de Petropar a la solicitud de información pública N° 90150 (17/03/2025). Desde 2025: prensa y planilla propia, y luego la página oficial de Petropar. Cada precio indica su fuente en el cuadro emergente.</li>
       <li><strong>Cambio de tipo de precio.</strong> De 2009 a 2014 el dato es el "precio máximo y/o sugerido de venta al público"; desde 2015 es el "precio de venta al público". No son exactamente lo mismo, aunque en 2015 las dos páginas del documento oficial coinciden. En el gráfico, ese primer tramo va con fondo de trama fina y el rótulo "Precio máximo/sugerido" (el rango sale de los datos: desde el primer precio de ese tipo hasta la primera fila de venta al público), y el cuadro emergente aclara de qué tipo es cada precio.</li>
       <li><strong>Productos que aparecen después.</strong> La serie empieza en 2009, pero Diésel Mbarete aparece en 2011 y Oikoite 93 y Ecoflex 85 en 2015. Nunca se extrapola un producto hacia atrás de su primera fecha.</li>
@@ -153,7 +153,7 @@
     <div>
       <h2>Fuentes</h2>
       <p>Petropar: <a href="https://informacionpublica.paraguay.gov.py/public/2025/1742301348_1_RespuestaSolicitudN90150.pdf" rel="noopener noreferrer">respuesta a la solicitud de información pública N° 90150</a> (2009–2024), prensa y la <a href="https://www.petropar.gov.py/?page_id=4460" rel="noopener noreferrer">página oficial</a> (desde 2025).</p>
-      <p>Petróleo: <a href="https://www.eia.gov/" rel="noopener noreferrer">U.S. Energy Information Administration (EIA)</a>, precios spot diarios WTI Cushing y diésel ULSD de la Costa del Golfo.</p>
+      <p>Petróleo: <a href="https://www.eia.gov/" rel="noopener noreferrer">U.S. Energy Information Administration (EIA)</a>, precios spot diarios: <span id="fuente-oil">Brent (Europa, FOB) o diésel ULSD (Costa del Golfo, EE.UU.), según la serie elegida</span>.</p>
     </div>
     <div>
       <h2>Metodología</h2>
