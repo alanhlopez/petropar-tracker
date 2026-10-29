@@ -28,7 +28,8 @@
   var OG = false;
   try { OG = new URLSearchParams(location.search).get('og') === '1'; } catch (e) { /* sin parámetros */ }
   if (OG) document.documentElement.classList.add('modo-og');
-  var state = { vista: 'dual', oil: 'brent', rango: 'all', tab: 'liq', sel: null };
+  // desde/hasta: rango visible del histórico (Date UTC); preset: botón activo ('todo', '5a', ...) o null si es personalizado
+  var state = { vista: 'dual', oil: 'brent', desde: null, hasta: null, preset: 'todo', tab: 'liq', sel: null };
   var D = null;          // datos crudos
   var PRODS = {};        // id -> {meta, segs}
   var OIL = {};          // brent|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
@@ -156,13 +157,16 @@
     return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs, gaps: p.gaps, rows: p.rows,
       hasMax: p.rows.some(function (r) { return r.tipo_precio === 'max_o_sugerido_venta_publico'; }) };
   }
-  function seriesOil(k) {
+  // diario = true: serie diaria (rangos de 2 años o menos); si no, promedio mensual
+  function seriesOil(k, diario) {
     var o = OIL[k];
     if (!o || !o.mensual.length) return null;
-    var last = o.mensual[o.mensual.length - 1].d;
+    var pts = diario && o.diario.length ? o.diario : o.mensual;
     return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'brent' ? 'Brent' : 'ULSD', color: 'var(--oil)',
-      segs: [{ pts: o.mensual, end: last }], gaps: [] };
+      diario: pts === o.diario, segs: [{ pts: pts, end: pts[pts.length - 1].d }], gaps: [] };
   }
+  // último punto con fecha <= t (petróleo), o null
+  function ptLE(pts, t) { var i = bisD(pts, t) - 1; return i >= 0 ? pts[i] : null; }
   function gapAt(s, t) {
     var gs_ = s.gaps || [];
     for (var i = 0; i < gs_.length; i++) if (t > gs_[i].a && (!gs_[i].b || t < gs_[i].b)) return gs_[i];
@@ -195,21 +199,66 @@
   }
 
   /* ---------- escalas ---------- */
-  function niceOilStep(max, n) {
-    var need = max / n, base = Math.pow(10, Math.floor(Math.log10(need)));
-    var mult = [1, 2, 2.5, 3, 4, 5, 6, 8, 10];   // pasos intermedios: el eje no queda con el doble de lo necesario
-    for (var i = 0; i < mult.length; i++) if (base * mult[i] >= need) return base * mult[i];
-    return base * 10;
-  }
-  function yMaxVisible(list, xmin, xmax) {
-    var m = 0;
+  // mínimo y máximo de las series en el rango visible (incluye el valor vigente al inicio)
+  function yExtVisible(list, xmin, xmax) {
+    var lo = Infinity, hi = -Infinity;
     list.forEach(function (s) {
       s.segs.forEach(function (g) {
-        g.pts.forEach(function (p) { if (p.d >= xmin && p.d <= xmax && p.v > m) m = p.v; });
+        g.pts.forEach(function (p) { if (p.d >= xmin && p.d <= xmax) { if (p.v > hi) hi = p.v; if (p.v < lo) lo = p.v; } });
       });
-      var p0 = pointAt(s, xmin); if (p0 && p0.v > m) m = p0.v;
+      var p0 = s.kind === 'oil' ? ptLE(s.segs[0].pts, xmin) : pointAt(s, xmin);
+      if (p0) { if (p0.v > hi) hi = p0.v; if (p0.v < lo) lo = p0.v; }
     });
-    return m;
+    return isFinite(lo) ? [lo, hi] : null;
+  }
+  var MULT = [1, 2, 2.5, 3, 4, 5, 6, 8];
+  function pasosNice(min) {   // pasos "redondos" >= min, de menor a mayor
+    var b = Math.pow(10, Math.floor(Math.log10(min))), out = [];
+    [b / 10, b, b * 10].forEach(function (e) { MULT.forEach(function (k) { if (e * k >= min * 0.999) out.push(e * k); }); });
+    return out;
+  }
+  // eje con margen: el rango visible más un 6 % arriba y abajo; como mucho nMax intervalos. piso0: no bajar de 0
+  function ejeConMargen(ext, nMax, piso0) {
+    var lo = ext[0], hi = ext[1], span = hi - lo;
+    if (span <= 0) span = Math.abs(hi) * 0.1 || 1;
+    lo -= span * 0.06; hi += span * 0.06;
+    if (piso0 && lo < 0) lo = 0;
+    var pasos = pasosNice((hi - lo) / nMax);
+    for (var i = 0; i < pasos.length; i++) {
+      var st = pasos[i], a = Math.floor(lo / st + 1e-9) * st, n = Math.ceil((hi - a) / st - 1e-9);
+      if (n <= nMax) return { a: a, paso: st, n: Math.max(1, n) };
+    }
+    var p = pasos[pasos.length - 1]; return { a: Math.floor(lo / p) * p, paso: p, n: nMax };
+  }
+  // eje derecho con la misma cantidad de intervalos que el izquierdo (comparten la grilla)
+  function ejeAlineado(ext, n) {
+    var lo = ext[0], hi = ext[1], span = (hi - lo) || Math.abs(hi) * 0.1 || 1;
+    lo -= span * 0.06; hi += span * 0.06;
+    var pasos = pasosNice((hi - lo) / n);
+    for (var i = 0; i < pasos.length; i++) {
+      var st = pasos[i], a = Math.floor(lo / st + 1e-9) * st;
+      if (a + n * st >= hi - 1e-9) return { a: a, paso: st, n: n };
+    }
+    var p = pasos[pasos.length - 1]; return { a: Math.floor(lo / p) * p, paso: p, n: n };
+  }
+  function decPaso(p) { return p % 1 === 0 ? 0 : (Math.abs(p * 10 - Math.round(p * 10)) < 1e-9 ? 1 : 2); }
+
+  /* Variación del período visible para la etiqueta final: precio vigente al final contra el vigente al inicio
+     (Rango.variacion; nunca a través de un hueco). Mismo criterio de flecha y color que "Precios hoy": ▲ sube, ▼ baja. */
+  function variacionSerie(s, xmin, xmax) {
+    var a, b;
+    if (s.kind === 'oil') {
+      var pa = ptLE(s.segs[0].pts, xmin), pb = ptLE(s.segs[0].pts, xmax);
+      if (!pa || !pb || !pa.v) return null;
+      a = pa.v; b = pb.v;
+    } else {
+      var r = Rango.variacion(s.rows, xmin, xmax, PRODS[s.id].meta.huecos || []);
+      if (!r) return null;
+      a = r.inicio.precio; b = r.fin.precio;
+    }
+    var pct = Math.round((b / a - 1) * 1000) / 10;
+    if (pct === 0) return { pct: 0, cls: 'igual', txt: '= 0%' };
+    return { pct: pct, cls: pct > 0 ? 'sube' : 'baja', txt: (pct > 0 ? '▲ +' : '▼ −') + dec(Math.abs(pct), 1) + '%' };
   }
 
   /* ---------- colisión de etiquetas ---------- */
@@ -231,6 +280,7 @@
 
   /* ---------- gráfico ---------- */
   var charts = {};   // host.id -> {redraw, pinned}
+  var ARRASTRE = { fin: 0 };   // momento en que terminó el último arrastre (para no tomarlo como click)
 
   function drawChart(hostId, o) {
     var host = document.getElementById(hostId);
@@ -247,12 +297,8 @@
     }
     var all = lista.concat(showOil ? [o.oil] : []);
 
-    // rango x
-    var xmax = XMAX, xmin = XMIN_ALL;
-    if (o.rango !== 'all') {
-      xmin = new Date(Date.UTC(xmax.getUTCFullYear() - (+o.rango), xmax.getUTCMonth(), xmax.getUTCDate()));
-      if (xmin < XMIN_ALL) xmin = XMIN_ALL;
-    }
+    // rango x: el elegido (botones, navegador, arrastre, zoom) o todo
+    var xmax = o.hasta || XMAX, xmin = o.desde || XMIN_ALL;
 
     if (o.xDesdeDatos && lista.length) {   // p. ej. GLP: el eje arranca en su primer dato (con margen de 60 días)
       xmin = new Date(+d3.min(lista, firstD) - 60 * 864e5);
@@ -261,7 +307,7 @@
     // layout
     var dualAx = showOil && !index;
     var axisR = dualAx && !mobile ? 58 : 0;   // en móvil los ticks US$ van por dentro del área
-    var labW = mobile ? 0 : 178;      // en móvil las etiquetas finales van en un bloque debajo del gráfico
+    var labW = mobile ? 0 : 238;      // en móvil las etiquetas finales van en un bloque debajo del gráfico
     var m = { top: 48, left: mobile ? 41 : 64, bottom: 26, right: axisR + (mobile ? 8 : labW + 4) };
     var H = o.altura || (mobile ? 420 : Math.max(440, Math.min(560, Math.round(W * 0.5))));
     var iw = W - m.left - m.right, ih = H - m.top - m.bottom;
@@ -305,19 +351,16 @@
       yL = d3.scaleLinear().domain([lo, hi]).range([ih, band]).nice(5);
       ticksL = yL.ticks(5);
     } else {
-      var mx = yMaxVisible(priceAct, xmin, xmax) || 12000;
-      var raw = mx * 1.04, step = 10000, cs = [500, 1000, 2000, 2500, 5000, 10000];
-      for (var ci = 0; ci < cs.length; ci++) { if (Math.ceil(raw / cs[ci]) <= 6) { step = cs[ci]; break; } }
-      var n = Math.max(1, Math.ceil(raw / step));
-      ticksL = d3.range(0, n + 1).map(function (i) { return i * step; });
-      yL = d3.scaleLinear().domain([0, step * n]).range([ih, band]);
+      // los dos ejes se reajustan al rango visible, con margen
+      var eL = ejeConMargen(yExtVisible(priceAct, xmin, xmax) || [0, 12000], 6, true);
+      var n = eL.n;
+      ticksL = d3.range(0, n + 1).map(function (i) { return eL.a + i * eL.paso; });
+      yL = d3.scaleLinear().domain([eL.a, eL.a + eL.paso * n]).range([ih, band]);
       if (dualAx) {
-        var oilAct = activas.indexOf(o.oil) >= 0;
-        var om = oilAct ? yMaxVisible([o.oil], xmin, xmax) : 3;
-        var rs = niceOilStep((om || 3) * 1.05, n);
-        yR = d3.scaleLinear().domain([0, rs * n]).range([ih, band]);
-        ticksR = d3.range(0, n + 1).map(function (i) { return i * rs; });
-        decR = rs % 1 === 0 ? 0 : (Math.abs(rs * 10 - Math.round(rs * 10)) < 1e-9 ? 1 : 2);
+        var eR = ejeAlineado((activas.indexOf(o.oil) >= 0 && yExtVisible([o.oil], xmin, xmax)) || [0, 3], n);
+        yR = d3.scaleLinear().domain([eR.a, eR.a + eR.paso * n]).range([ih, band]);
+        ticksR = d3.range(0, n + 1).map(function (i) { return eR.a + i * eR.paso; });
+        decR = decPaso(eR.paso);
       }
     }
     var yOf = function (s, v) { return (s.kind === 'oil' && yR) ? yR(v) : yL(tr(s, v)); };
@@ -365,8 +408,13 @@
         .style('fill', 'url(#' + uid + 'm)').attr('opacity', 0.22);
       gp.append('line').attr('x1', tb).attr('x2', tb).attr('y1', band).attr('y2', ih).style('stroke', 'var(--muted)')
         .attr('stroke-width', 1).attr('opacity', 0.35);
-      g.append('text').attr('class', 'halo tramo-t').attr('x', ta + 4).attr('y', fs + 1).attr('font-size', mobile ? 10 : 11)
+      var tt0 = g.append('text').attr('class', 'halo tramo-t').attr('x', ta + 4).attr('y', fs + 1).attr('font-size', mobile ? 10 : 11)
         .text('Precio máximo/sugerido');
+      // nunca cortado en el borde: versión corta o nada
+      try {
+        if (tt0.node().getComputedTextLength() > tb - ta - 8) tt0.text('Máx./sugerido');
+        if (tt0.node().getComputedTextLength() > tb - ta - 8) tt0.remove();
+      } catch (e) { /* sin medición */ }
     }
 
     // grilla y ejes
@@ -376,10 +424,15 @@
     g.append('g').attr('class', 'axis').call(d3.axisLeft(yL).tickValues(ticksL).tickFormat(fmtL).tickSize(0).tickPadding(6))
       .call(function (a) { a.select('.domain').remove(); }).selectAll('text').attr('font-size', fs);
     var nY = (xmax - xmin) / (365.25 * 864e5);
-    var tickV, fmtX;
-    if (nY <= 3.2) {
-      tickV = d3.utcMonth.every(mobile ? 6 : 3).range(xmin, xmax);
-      fmtX = function (d) { return d.getUTCMonth() === 0 ? String(d.getUTCFullYear()) : MESES[d.getUTCMonth()] + ' ' + String(d.getUTCFullYear()).slice(2); };
+    var tickV, fmtX, nivel = Rango.nivelEje(xmin, xmax);
+    // años, meses ("ene 2026") o días ("15 oct") según el zoom; los pasos se eligen para que las etiquetas entren
+    function cabe(lista, ancho) { return lista.length <= Math.max(2, Math.floor(iw / ancho)); }
+    if (nivel === 'dias') {
+      [1, 2, 3, 7, 14].some(function (k) { tickV = d3.utcDay.every(k).range(xmin, xmax); return cabe(tickV, mobile ? 46 : 54); });
+      fmtX = function (d) { return d.getUTCDate() + ' ' + MESES[d.getUTCMonth()]; };
+    } else if (nivel === 'meses') {
+      [1, 2, 3, 4, 6, 12].some(function (k) { tickV = d3.utcMonth.every(k).range(xmin, xmax); return cabe(tickV, mobile ? 56 : 66); });
+      fmtX = function (d) { return MESES[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
     } else {
       var k = Math.max(1, Math.ceil(nY * (mobile ? 40 : 50) / iw));
       if (k === 3) k = 4; if (k > 4 && k < 10) k = 5;
@@ -442,14 +495,18 @@
     });
     hitosV.forEach(function (v, k) {
       var xx = x(v.a);
-      var txt = mobile ? v.e.etiqueta.replace(/\s*\(.*?\)/g, '') : v.e.etiqueta;
-      var tt = g.append('text').attr('class', 'hito-t halo').attr('y', fs + 1 + (k % 2) * fs2)
-        .attr('font-size', mobile ? 10 : 11).text(txt);
-      var tl = 0; try { tl = tt.node().getComputedTextLength(); } catch (e) { tl = txt.length * 6; }
-      var spR = iw - xx - 5, spL = xx - 5, right = tl <= spR ? false : (tl <= spL ? true : spL > spR);
-      var sp = right ? spL : spR;
-      if (tl > sp && sp > 20) tt.text(txt.slice(0, Math.max(3, Math.floor(txt.length * sp / tl) - 1)) + '…');
-      tt.attr('x', xx + (right ? -5 : 5)).attr('text-anchor', right ? 'end' : 'start');
+      // rótulo completo, o abreviado (sin paréntesis), o nada: nunca cortado en el borde
+      var largo = v.e.etiqueta, corto = largo.replace(/\s*\(.*?\)/g, '');
+      var tt = g.append('text').attr('class', 'hito-t halo').attr('y', fs + 1 + (k % 2) * fs2).attr('font-size', mobile ? 10 : 11);
+      var spR = iw - xx - 5, spL = xx - 5, ok = false;
+      (mobile ? [corto] : [largo, corto]).some(function (txt) {
+        tt.text(txt);
+        var tl = 0; try { tl = tt.node().getComputedTextLength(); } catch (e) { tl = txt.length * 6; }
+        if (tl <= spR) { tt.attr('x', xx + 5).attr('text-anchor', 'start'); ok = true; }
+        else if (tl <= spL) { tt.attr('x', xx - 5).attr('text-anchor', 'end'); ok = true; }
+        return ok;
+      });
+      if (!ok) tt.remove();
     });
 
     // marcador base 100
@@ -526,17 +583,20 @@
     });
 
     // etiquetas directas
+    // valor en la fecha final visible y variación del período (vigente al final contra vigente al inicio; ver rango.js)
     var lab = [], fin = [];
     all.forEach(function (s) {
       if (activas.indexOf(s) < 0) return;
-      var gLast = s.segs[s.segs.length - 1], pl = gLast.pts[gLast.pts.length - 1];
-      var v = tr(s, pl.v);
-      if (!isFinite(v)) return;
-      var alcanza = s.kind === 'oil' || (xmax - gLast.end) < 864e5 * 2;
-      if (alcanza) {
-        lab.push({ s: s, y0: yOf(s, pl.v), v: v });
-      } else if (gLast.end >= xmin) {
-        fin.push({ s: s, x: x(gLast.end), y: yOf(s, pl.v), end: gLast.end });
+      var pEnd = s.kind === 'oil' ? ptLE(s.segs[0].pts, xmax) : pointAt(s, xmax);
+      if (pEnd && isFinite(tr(s, pEnd.v))) {
+        lab.push({ s: s, y0: yOf(s, pEnd.v), v: tr(s, pEnd.v), varia: variacionSerie(s, xmin, xmax) });
+        return;
+      }
+      // la serie no llega al final visible (hueco o dejó de publicarse): marca de corte en su último punto visible
+      var segV = s.segs.filter(function (sg) { return sg.end >= xmin && sg.pts[0].d <= xmax; }).pop();
+      if (segV && s.kind !== 'oil') {
+        var pl = segV.pts[segV.pts.length - 1], fe = segV.end < xmax ? segV.end : xmax;
+        fin.push({ s: s, x: x(fe), y: yOf(s, pl.v), end: fe });
       }
     });
     var gap = fs + 3;
@@ -567,6 +627,10 @@
           .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v');
         tx.append('tspan').text((s.kind === 'oil' ? s.short : s.name) + ' ');
         tx.append('tspan').attr('font-weight', 700).text(valTxt(s, it.v));
+        if (it.varia) {
+          tx.append('tspan').attr('class', 'lbl-sep').text(' · ');
+          tx.append('tspan').attr('class', 'lbl-var ' + it.varia.cls).text(it.varia.txt);
+        }
       });
     }
     fin.forEach(function (it) {
@@ -578,11 +642,12 @@
       var fb = document.createElement('ul');
       fb.className = 'finales';
       var items = lab.slice().sort(function (a, b) { return a.y0 - b.y0; }).map(function (it) {
-        return { s: it.s, txt: valTxt(it.s, it.v) };
+        return { s: it.s, txt: valTxt(it.s, it.v), varia: it.varia };
       }).concat(fin.map(function (it) { return { s: it.s, txt: 'dato hasta ' + fmtD(it.end) }; }));
       fb.innerHTML = items.map(function (it) {
         return '<li><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
-          + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong></li>';
+          + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong>'
+          + (it.varia ? ' <span class="var-p ' + it.varia.cls + '">' + esc(it.varia.txt) + '</span>' : '') + '</li>';
       }).join('');
       host.appendChild(fb);
     }
@@ -701,14 +766,18 @@
       st.pinned = false; tip.hidden = true; tip.classList.remove('fijo');
       guia.style('display', 'none'); foco.style('display', 'none');
     }
-    var ov = g.append('rect').attr('width', iw).attr('height', ih).attr('fill', 'transparent').style('cursor', 'crosshair');
+    var ov = g.append('rect').attr('class', 'ov').attr('width', iw).attr('height', ih).attr('fill', 'transparent').style('cursor', 'crosshair');
+    st.geom = { left: m.left, iw: iw, xmin: xmin, xmax: xmax };   // para arrastre y zoom (wireZoom)
     function loc(ev) { var r = ov.node().getBoundingClientRect(); return [Math.max(0, Math.min(iw, ev.clientX - r.left)), Math.max(0, Math.min(ih, ev.clientY - r.top))]; }
     ov.on('pointermove', function (ev) {
       if (st.pinned || ev.pointerType === 'touch') return;
       var p = loc(ev); mostrar(p[0], p[1], false);
     });
     ov.on('pointerleave', function (ev) { if (ev.pointerType !== 'touch') ocultar(false); });
-    ov.on('click', function (ev) { var p = loc(ev); st.pinned = true; mostrar(p[0], p[1], true); });
+    ov.on('click', function (ev) {
+      if (Date.now() - ARRASTRE.fin < 250) return;   // fue un arrastre, no un click
+      var p = loc(ev); st.pinned = true; mostrar(p[0], p[1], true);
+    });
     svg.on('keydown', null);
     st.esc = function () { ocultar(true); };
 
@@ -743,9 +812,9 @@
   function optsLiq() {
     var sel = liquidos().filter(function (p) { return state.sel.has(p.id); })
       .map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
-    var oil = state.oil === 'none' ? null : seriesOil(state.oil);
+    var oil = state.oil === 'none' ? null : seriesOil(state.oil, Rango.petroleoDiario(state.desde, state.hasta));
     return {
-      series: sel, oil: oil, view: state.vista, rango: state.rango, leyendaId: 'leyenda-liq',
+      series: sel, oil: oil, view: state.vista, desde: state.desde, hasta: state.hasta, leyendaId: 'leyenda-liq',
       vacio: 'Elegí al menos un producto para ver el gráfico.',
       aria: 'Precios de combustibles de Petropar y petróleo internacional, serie histórica'
     };
@@ -753,7 +822,7 @@
   function optsGlp() {
     return {
       series: glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean),
-      oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
+      oil: null, view: 'dual', leyendaId: 'leyenda-glp', altura: undefined,
       xDesdeDatos: true, sinPromos: true,
       vacio: 'Sin datos todavía. El GLP (Ñande Gas) entra con la primera captura del scraper.',
       ejeL: 'Gs por kg / por litro',
@@ -779,6 +848,7 @@
     o.onInfo = function (i) { av.textContent = notaVista(i.base); };
     if (OG) o.altura = 520;
     drawChart('chart-liq', o);
+    navDibujar();
   }
   function renderGlp() {
     var o = optsGlp();
@@ -995,7 +1065,10 @@
     });
   }
   function wireControls() {
-    [['vista', 'vista'], ['oil', 'oil'], ['rango', 'rango']].forEach(function (c) {
+    document.querySelectorAll('input[name=rango]').forEach(function (i) {
+      i.addEventListener('change', function () { if (i.checked) aplicarPreset(i.value); });
+    });
+    [['vista', 'vista'], ['oil', 'oil']].forEach(function (c) {
       document.querySelectorAll('input[name=' + c[0] + ']').forEach(function (i) {
         i.addEventListener('change', function () { if (i.checked) { state[c[1]] = i.value; if (c[0] === 'oil') textoOil(); render(); } });
       });
@@ -1028,6 +1101,166 @@
     fr.textContent = k !== 'none' && u[k] ? 'Petróleo (EIA): ' + OIL_NOMBRE[k] + ' al ' + fmtIso(u[k]) + '.' : '';
     if (pf) pf.textContent = k === 'none' ? 'Brent o diésel ULSD' : OIL_FUENTE[k] + (u[k] ? ', al ' + fmtIso(u[k]) : '');
   }
+  /* ---------- navegación temporal (rango visible del histórico) ----------
+     Un solo punto de entrada: setRango. Lo usan los botones, el navegador, los campos de fecha, el arrastre y el zoom.
+     Redibuja con requestAnimationFrame (un dibujo por cuadro aunque lleguen muchos eventos) y guarda el rango en la URL. */
+  var rafRango = 0, urlTimer = 0;
+  function setRango(desde, hasta) {
+    var r = Rango.limitar(desde, hasta, XMIN_ALL, XMAX);
+    state.desde = r.desde; state.hasta = r.hasta;
+    state.preset = Rango.presetDe(r.desde, r.hasta, XMIN_ALL, XMAX);
+    document.querySelectorAll('input[name=rango]').forEach(function (i) { i.checked = i.value === state.preset; });
+    navPosicion();
+    clearTimeout(urlTimer); urlTimer = setTimeout(urlGuardar, 300);
+    cancelAnimationFrame(rafRango);
+    rafRango = requestAnimationFrame(function () { if (state.tab === 'liq') renderLiq(); });
+  }
+  function aplicarPreset(clave) { var r = Rango.preset(clave, XMIN_ALL, XMAX); setRango(r.desde, r.hasta); }
+  // ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD (sin parámetros = Todo); conserva los demás parámetros
+  function urlGuardar() {
+    try {
+      var u = new URL(location.href);
+      u.searchParams.delete('rango');
+      if (state.preset === 'todo') { u.searchParams.delete('desde'); u.searchParams.delete('hasta'); }
+      else { u.searchParams.set('desde', iso(state.desde)); u.searchParams.set('hasta', iso(state.hasta)); }
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
+    } catch (e) { /* sin History API: el rango vale solo en esta visita */ }
+  }
+  function rangoInicial(qp) {
+    var okIso = /^\d{4}-\d{2}-\d{2}$/, d0 = qp.get('desde'), d1 = qp.get('hasta');
+    if (d0 && d1 && okIso.test(d0) && okIso.test(d1) && parse(d0) && parse(d1)) return Rango.limitar(d0, d1, XMIN_ALL, XMAX);
+    var viejo = { all: 'todo', '10': '10a', '5': '5a' }[qp.get('rango')];   // links viejos (?rango=)
+    if (viejo) return Rango.preset(viejo, XMIN_ALL, XMAX);
+    if (qp.get('rango') === '2') return Rango.limitar(new Date(+XMAX - 730 * 864e5), XMAX, XMIN_ALL, XMAX);
+    return Rango.preset('todo', XMIN_ALL, XMAX);
+  }
+
+  /* Navegador: minigráfico de Diésel Porã (o del primer producto activo) en todo el período y una ventana arrastrable.
+     El minigráfico se redibuja al cambiar el ancho o los productos; la ventana se mueve con navPosicion. */
+  var NAV = { x: null, w: 0, id: null };
+  function navSerie() {
+    var ids = liquidos().map(function (p) { return p.id; }).filter(function (id) { return state.sel.has(id); });
+    return state.sel.has('diesel_pora') ? 'diesel_pora' : (ids[0] || 'diesel_pora');
+  }
+  function navDibujar() {
+    var box = el('#nav-mini'); if (!box) return;
+    var W = box.clientWidth, H = 60, id = navSerie(), s = seriesPrice(id);
+    if (W < 50) return;
+    if (W !== NAV.w || id !== NAV.id) {
+      NAV.w = W; NAV.id = id;
+      NAV.x = d3.scaleUtc().domain([XMIN_ALL, XMAX]).range([0, W]);
+      var old = box.querySelector('svg'); if (old) old.remove();
+      var svg = d3.select(box).insert('svg', ':first-child').attr('width', W).attr('height', H).attr('aria-hidden', 'true');
+      if (s) {
+        var lo = d3.min(s.rows, function (r) { return r.precio; }), hi = d3.max(s.rows, function (r) { return r.precio; });
+        var y = d3.scaleLinear().domain([lo * 0.95, hi * 1.03]).range([H - 4, 4]);
+        s.segs.forEach(function (sg) {
+          var pts = sg.pts.concat([{ d: sg.end, v: sg.pts[sg.pts.length - 1].v }]);
+          var ar = d3.area().x(function (p) { return NAV.x(p.d); }).y0(H).y1(function (p) { return y(p.v); }).curve(d3.curveStepAfter);
+          var ln = d3.line().x(function (p) { return NAV.x(p.d); }).y(function (p) { return y(p.v); }).curve(d3.curveStepAfter);
+          svg.append('path').attr('d', ar(pts)).style('fill', s.color).attr('opacity', 0.12);
+          svg.append('path').attr('d', ln(pts)).attr('fill', 'none').style('stroke', s.color).attr('stroke-width', 1.5);
+        });
+        svg.append('text').attr('class', 'nav-rot').attr('x', 6).attr('y', 14).text(s.name);
+      }
+      d3.utcYear.every(W < 500 ? 4 : 2).range(XMIN_ALL, XMAX).forEach(function (d) {
+        svg.append('text').attr('class', 'nav-anio').attr('x', NAV.x(d) + 3).attr('y', H - 5).text(d.getUTCFullYear());
+      });
+    }
+    navPosicion();
+  }
+  function navPosicion() {
+    if (!NAV.x) return;
+    var a = NAV.x(state.desde), b = NAV.x(state.hasta), v = el('#nav-ventana');
+    v.style.left = a + 'px'; v.style.width = Math.max(4, b - a) + 'px';
+    el('#nav-sombra-a').style.width = a + 'px';
+    el('#nav-sombra-b').style.left = b + 'px'; el('#nav-sombra-b').style.width = Math.max(0, NAV.w - b) + 'px';
+    v.setAttribute('aria-valuetext', 'Desde ' + fmtD(state.desde) + ' hasta ' + fmtD(state.hasta));
+    v.setAttribute('aria-label', 'Período visible: ' + fmtD(state.desde) + ' a ' + fmtD(state.hasta));
+    var i0 = el('#nav-desde'), i1 = el('#nav-hasta');
+    if (document.activeElement !== i0) i0.value = iso(state.desde);
+    if (document.activeElement !== i1) i1.value = iso(state.hasta);
+  }
+  function wireNav() {
+    var box = el('#nav-mini'), v = el('#nav-ventana'), i0 = el('#nav-desde'), i1 = el('#nav-hasta');
+    [i0, i1].forEach(function (i) { i.min = iso(XMIN_ALL); i.max = iso(XMAX); });
+    function deFecha(i) { return /^\d{4}-\d{2}-\d{2}$/.test(i.value) ? parse(i.value) : null; }
+    i0.addEventListener('change', function () { var d = deFecha(i0); if (d) setRango(d, state.hasta); });
+    i1.addEventListener('change', function () { var d = deFecha(i1); if (d) setRango(state.desde, d); });
+    // arrastre: ventana (mover), bordes (estirar) o fondo (centrar la ventana ahí y seguir moviéndola)
+    var drag = null;
+    box.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0 || !NAV.x) return;
+      var rect = box.getBoundingClientRect(), px = ev.clientX - rect.left;
+      var borde = ev.target.getAttribute && ev.target.getAttribute('data-borde');
+      var modo = borde || 'mover';
+      if (!borde && !v.contains(ev.target)) {   // click en el fondo: centrar
+        var span = state.hasta - state.desde, t = +NAV.x.invert(px);
+        setRango(new Date(t - span / 2), new Date(t + span / 2));
+      }
+      drag = { modo: modo, px: px, desde: +state.desde, hasta: +state.hasta, k: (XMAX - XMIN_ALL) / NAV.w };
+      box.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+    });
+    box.addEventListener('pointermove', function (ev) {
+      if (!drag) return;
+      var px = ev.clientX - box.getBoundingClientRect().left, dt = (px - drag.px) * drag.k;
+      if (drag.modo === 'a') setRango(new Date(Math.min(drag.desde + dt, drag.hasta - 30 * 864e5)), new Date(drag.hasta));
+      else if (drag.modo === 'b') setRango(new Date(drag.desde), new Date(Math.max(drag.hasta + dt, drag.desde + 30 * 864e5)));
+      else setRango(new Date(drag.desde + dt), new Date(drag.hasta + dt));
+    });
+    function soltar() { drag = null; }
+    box.addEventListener('pointerup', soltar);
+    box.addEventListener('pointercancel', soltar);
+    // teclado: flechas mueven la ventana; Shift+flechas mueven el final (la estiran o la achican); Inicio/Fin van a los extremos
+    v.addEventListener('keydown', function (ev) {
+      var span = state.hasta - state.desde, paso = Math.max(7 * 864e5, span * 0.1), mes = 30.44 * 864e5;
+      var a = +state.desde, b = +state.hasta;
+      if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+        var sg = ev.key === 'ArrowLeft' ? -1 : 1;
+        if (ev.shiftKey) setRango(new Date(a), new Date(b + sg * mes));
+        else setRango(new Date(a + sg * paso), new Date(b + sg * paso));
+      } else if (ev.key === 'Home') setRango(XMIN_ALL, new Date(+XMIN_ALL + span));
+      else if (ev.key === 'End') setRango(new Date(+XMAX - span), XMAX);
+      else return;
+      ev.preventDefault();
+    });
+  }
+
+  /* Gráfico principal (solo con mouse): arrastrar desplaza; Ctrl/⌘ + rueda hace zoom alrededor del cursor
+     (sin modificador la rueda hace scroll de la página); doble click vuelve a Todo. En pantallas táctiles no hay
+     gestos sobre el gráfico (el scroll no se traba): se navega con los botones y el navegador. */
+  function wireZoom() {
+    var host = el('#chart-liq'), drag = null;
+    host.addEventListener('pointerdown', function (ev) {
+      var gm = charts['chart-liq'] && charts['chart-liq'].geom;
+      if (ev.pointerType !== 'mouse' || ev.button !== 0 || !gm || !ev.target.classList || !ev.target.classList.contains('ov')) return;
+      drag = { x: ev.clientX, desde: +state.desde, hasta: +state.hasta, k: (gm.xmax - gm.xmin) / gm.iw, movido: false };
+    });
+    window.addEventListener('pointermove', function (ev) {
+      if (!drag) return;
+      var dx = ev.clientX - drag.x;
+      if (!drag.movido && Math.abs(dx) < 4) return;
+      if (!drag.movido) { drag.movido = true; document.body.classList.add('arrastrando'); if (charts['chart-liq'].esc) charts['chart-liq'].esc(); }
+      setRango(new Date(drag.desde - dx * drag.k), new Date(drag.hasta - dx * drag.k));
+    });
+    window.addEventListener('pointerup', function () {
+      if (drag && drag.movido) ARRASTRE.fin = Date.now();
+      drag = null; document.body.classList.remove('arrastrando');
+    });
+    host.addEventListener('wheel', function (ev) {
+      var gm = charts['chart-liq'] && charts['chart-liq'].geom;
+      if (!(ev.ctrlKey || ev.metaKey) || !gm) return;
+      ev.preventDefault();
+      var f = Math.max(0, Math.min(1, (ev.clientX - host.getBoundingClientRect().left - gm.left) / gm.iw));
+      var span = gm.xmax - gm.xmin, t = +gm.xmin + f * span, nuevo = span * Math.exp(ev.deltaY * 0.0025);
+      setRango(new Date(t - f * nuevo), new Date(t + (1 - f) * nuevo));
+    }, { passive: false });
+    host.addEventListener('dblclick', function (ev) {
+      if (ev.target.closest && ev.target.closest('svg')) aplicarPreset('todo');
+    });
+  }
+
   function textos() {
     var u = D.ultimo_dato || {};
     textoOil();
@@ -1132,7 +1365,8 @@
     var sw = +svg.getAttribute('width'), sh = +svg.getAttribute('height');
     caja.remove();
 
-    var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar' : 'Precios de combustibles de Petropar y precio del petróleo';
+    var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar'
+      : 'Precios de combustibles de Petropar y precio del petróleo, ' + fmtD(state.desde) + ' – ' + fmtD(state.hasta);
     var subt = state.tab === 'glp' ? 'Guaraníes por kg y por litro, nominal'
       : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100 con ' + o.oil.short : '; ' + o.oil.short + ' en US$ por galón (eje derecho, escala independiente)') : '');
     var u = D.ultimo_dato || {};
@@ -1155,7 +1389,7 @@
       cx.fillText(fuente, PAD - 8, HC + sh + 34); cx.fillText(fecha, PAD - 8, HC + sh + 52);
       cv.toBlob(function (b) {
         btn.disabled = false;
-        if (b) bajar('petropar_' + (state.tab === 'glp' ? 'glp' : 'combustibles') + '_' + (u.petropar || iso(new Date())) + '.png', b);
+        if (b) bajar('petropar_' + (state.tab === 'glp' ? 'glp' : 'combustibles_' + iso(state.desde) + '_' + iso(state.hasta)) + '.png', b);
       }, 'image/png');
     };
     img.onerror = function () { btn.disabled = false; };
@@ -1177,13 +1411,14 @@
     var dt = el('#det-tabla');   // la tabla completa se arma solo al abrir (o con ?tabla=1, útil para capturas)
     dt.addEventListener('toggle', function () { if (dt.open) armarTabla(); });
     try { if (new URLSearchParams(location.search).get('tabla') === '1') { dt.open = true; armarTabla(); } } catch (e) { /* sin parámetros */ }
-    /* Parámetros de URL (para compartir o capturar): ?rango=all|10|5|2 y ?pestana=glp */
+    /* Parámetros de URL (para compartir o capturar): ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD y ?pestana=glp */
+    var qp0 = null; try { qp0 = new URLSearchParams(location.search); } catch (e) { /* sin parámetros */ }
+    var r0 = rangoInicial(qp0 || new URLSearchParams(''));
+    state.desde = r0.desde; state.hasta = r0.hasta; state.preset = Rango.presetDe(r0.desde, r0.hasta, XMIN_ALL, XMAX);
+    document.querySelectorAll('input[name=rango]').forEach(function (i) { i.checked = i.value === state.preset; });
+    wireNav(); wireZoom();
     try {
-      var qp = new URLSearchParams(location.search), rg = qp.get('rango');
-      if (rg && ['all', '10', '5', '2'].indexOf(rg) >= 0) {
-        state.rango = rg;
-        var ri = document.querySelector('input[name=rango][value="' + rg + '"]'); if (ri) ri.checked = true;
-      }
+      var qp = new URLSearchParams(location.search);
       if (qp.get('pestana') === 'glp') { el('#tab-glp').click(); abrirMetodologia(); return; }
     } catch (e) { /* sin parámetros */ }
     render();

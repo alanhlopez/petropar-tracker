@@ -98,10 +98,13 @@
       <fieldset class="seg" id="ctl-rango">
         <legend>Período</legend>
         <div class="seg-g">
-          <label><input type="radio" name="rango" value="all" checked><span>Todo</span></label>
-          <label><input type="radio" name="rango" value="10"><span>10 años</span></label>
-          <label><input type="radio" name="rango" value="5"><span>5 años</span></label>
-          <label><input type="radio" name="rango" value="2"><span>2 años</span></label>
+          <label><input type="radio" name="rango" value="1m"><span>1M</span></label>
+          <label><input type="radio" name="rango" value="6m"><span>6M</span></label>
+          <label><input type="radio" name="rango" value="ytd"><span title="Desde el 1 de enero">YTD</span></label>
+          <label><input type="radio" name="rango" value="1a"><span>1A</span></label>
+          <label><input type="radio" name="rango" value="5a"><span>5A</span></label>
+          <label><input type="radio" name="rango" value="10a"><span>10A</span></label>
+          <label><input type="radio" name="rango" value="todo" checked><span>Todo</span></label>
         </div>
       </fieldset>
     </div>
@@ -109,6 +112,19 @@
 
     <div class="chart" id="chart-liq"></div>
     <p class="nota-eje" id="aviso-vista" role="note"></p>
+    <div class="nav-t" id="nav-liq">
+      <div class="nav-mini" id="nav-mini">
+        <div class="nav-sombra" id="nav-sombra-a"></div><div class="nav-sombra" id="nav-sombra-b"></div>
+        <div class="nav-ventana" id="nav-ventana" tabindex="0" role="group" aria-label="Período visible del gráfico" aria-describedby="nav-ayuda">
+          <span class="nav-h nav-h-a" data-borde="a" aria-hidden="true"></span><span class="nav-h nav-h-b" data-borde="b" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="nav-fechas">
+        <label>Desde <input type="date" id="nav-desde"></label>
+        <label>Hasta <input type="date" id="nav-hasta"></label>
+        <span class="nav-ayuda" id="nav-ayuda">Arrastrá la ventana o sus bordes. Con teclado: flechas la mueven, Shift+flechas cambian el final.<span class="nav-solo-desk"> En el gráfico: arrastrar desplaza, Ctrl/⌘ + rueda hace zoom, doble click vuelve a Todo.</span></span>
+      </div>
+    </div>
     <div class="leyenda" id="leyenda-liq"></div>
   </section>
 
@@ -172,6 +188,7 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="rango.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
