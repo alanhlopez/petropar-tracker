@@ -597,24 +597,28 @@
       if (segV && s.kind !== 'oil') {
         var pl = segV.pts[segV.pts.length - 1], fe = segV.end < xmax ? segV.end : xmax;
         fin.push({ s: s, x: x(fe), y: yOf(s, pl.v), end: fe });
+        // también va en la columna de etiquetas ("hasta DD/MM/AAAA"): con el cursor muestra su valor en esa fecha
+        lab.push({ s: s, y0: yOf(s, pl.v), v: tr(s, pl.v), finTxt: 'hasta ' + fmtD(fe), corte: x(fe) });
       }
     });
     var gap = fs + 3;
     var lx = iw + axisR + 6;
+    function txtFin(it) { return it.finTxt || valTxt(it.s, it.v); }
     function valTxt(s, v) {
       if (index) return dec(v, 0);
       return s.kind === 'oil' ? 'US$ ' + dec(v, 2) + '/gal' : miles(v);
     }
     if (mobile) {
       // móvil: puntos sobre la línea y un bloque de valores debajo del gráfico (texto en tinta del tema)
-      lab.forEach(function (it) { g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', it.s.color); });
+      lab.forEach(function (it) { if (!it.finTxt) g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', it.s.color); });
     } else {
       relax(lab, gap, band, ih + 6);
       lab.forEach(function (it) {
         var s = it.s;
-        g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', s.color);
-        if (Math.abs(it.y - it.y0) > 1) {
-          g.append('line').attr('x1', iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color).attr('stroke-width', 1);
+        if (!it.finTxt) g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', s.color);
+        if (Math.abs(it.y - it.y0) > 1 || it.finTxt) {
+          g.append('line').attr('x1', it.finTxt ? it.corte : iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color)
+            .attr('stroke-width', 1).attr('stroke-dasharray', it.finTxt ? '2 3' : null).attr('opacity', it.finTxt ? 0.6 : 1);
         }
         var sw = g.append('g').attr('transform', 'translate(' + lx + ',' + it.y + ')');
         if (s.kind === 'oil') {
@@ -627,7 +631,7 @@
           .attr('class', s.kind === 'oil' ? 'lbl-oil' : 'lbl-v');
         tx.append('tspan').text((s.kind === 'oil' ? s.short : s.name) + ' ');
         // referencias para las etiquetas dinámicas (valor en la fecha del cursor)
-        it.valT = tx.append('tspan').attr('font-weight', 700).text(valTxt(s, it.v));
+        it.valT = tx.append('tspan').attr('font-weight', it.finTxt ? 400 : 700).text(txtFin(it));
         it.sepT = tx.append('tspan').attr('class', 'lbl-sep').text(it.varia ? ' · ' : '');
         it.varT = tx.append('tspan').attr('class', 'lbl-var ' + (it.varia ? it.varia.cls : '')).text(it.varia ? it.varia.txt : '');
       });
@@ -644,8 +648,8 @@
       var fb = document.createElement('ul');
       fb.className = 'finales';
       var items = lab.slice().sort(function (a, b) { return a.y0 - b.y0; }).map(function (it) {
-        return { s: it.s, txt: valTxt(it.s, it.v), varia: it.varia };
-      }).concat(fin.map(function (it) { return { s: it.s, txt: 'dato hasta ' + fmtD(it.end) }; }));
+        return { s: it.s, txt: it.finTxt ? 'dato ' + it.finTxt : valTxt(it.s, it.v), varia: it.varia };
+      });
       fb.innerHTML = '<li class="fin-fecha" hidden></li>' + items.map(function (it) {
         return '<li data-sid="' + esc(it.s.id) + '"><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
           + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong>'
@@ -654,7 +658,7 @@
       host.appendChild(fb);
       lab.forEach(function (it) {
         var li = fb.querySelector('li[data-sid="' + it.s.id + '"]');
-        if (li) { it.liVal = li.querySelector('strong'); it.liVar = li.querySelector('.var-p'); }
+        if (li) { it.liVal = li.querySelector('strong'); it.liVar = li.querySelector('.var-p'); it.liTxt = it.finTxt ? 'dato ' + it.finTxt : null; }
       });
       var liFecha = fb.querySelector('.fin-fecha');
     }
@@ -664,21 +668,25 @@
     var foco = g.append('circle').attr('r', 5).attr('fill', 'none').attr('stroke-width', 2).style('display', 'none');
     var tip = document.createElement('div');
     tip.className = 'tt'; tip.hidden = true;
-    tip.setAttribute('role', 'dialog');
     host.appendChild(tip);
     var st = charts[hostId] = charts[hostId] || {};
     st.pinned = false;
 
-    /* Línea más cercana al cursor (precio o petróleo) en la fecha t. Devuelve {s, p, y, fecha} o null. */
+    // punto de petróleo en t: el día más cercano si la serie es diaria; el mes de t si es mensual (tooltip y etiquetas usan este)
+    function oilEn(s, t) {
+      var pts = s.segs[0].pts;
+      if (!s.diario) return ptLE(pts, t);
+      var i = d3.bisector(function (q) { return q.d; }).left(pts, t), a1 = pts[Math.max(0, i - 1)], a2 = pts[Math.min(pts.length - 1, i)];
+      return a2 && a1 && Math.abs(a2.d - t) < Math.abs(a1.d - t) ? a2 : a1;
+    }
+    /* Línea más cercana al cursor (precio o petróleo) en la fecha t. Devuelve {s, p, y} o null. */
     function cercana(t, py) {
       var best = null;
       all.forEach(function (s) {
         if (activas.indexOf(s) < 0) return;
         var p = null;
         if (s.kind === 'oil') {
-          var pts = s.segs[0].pts, i = d3.bisector(function (q) { return q.d; }).left(pts, t);
-          var a1 = pts[Math.max(0, i - 1)], a2 = pts[Math.min(pts.length - 1, i)];
-          p = s.diario && a2 && Math.abs(a2.d - t) < Math.abs(a1.d - t) ? a2 : (s.diario ? a1 : ptLE(pts, t));
+          p = oilEn(s, t);
         } else {
           p = pointAt(s, t);
           if (!p) s.segs.forEach(function (sg) {   // filas aisladas: se "pegan" si el cursor está a pocos px
@@ -696,14 +704,12 @@
     }
     // Tooltip compacto: una línea con producto y precio; otra, chica, con la fecha del cursor y la vigencia
     function htmlCompacto(c, t, conLink) {
-      var s = c.s, h = '<div class="tt-l1"><span class="tt-dot" style="background:' + s.color + '"></span>';
-      if (s.kind === 'oil') {
-        h += esc(s.short) + ' · <strong>US$ ' + dec(c.p.v, 2) + '/gal</strong></div>'
-          + '<div class="tt-l2">' + esc(fechaPetroleo(s, c.p)) + '</div>';
+      var s = c.s, h = '<div class="tt-l1"><span class="tt-dot" style="background:' + s.color + '"></span><span>';
+      if (s.kind === 'oil') {   // petróleo: una sola línea ("Brent · US$ 1,79/gal · 21/11/2024")
+        h += esc(s.short) + ' · <strong>US$ ' + dec(c.p.v, 2) + '/gal</strong> · <span class="tt-f">' + esc(fechaPetroleo(s, c.p)) + '</span></span></div>';
       } else {
         var r = c.p.row;
-        h += esc(s.name) + ' · <strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong>'
-          + (index ? ' <span class="tt-l2">(índice ' + dec(tr(s, r.precio), 1) + ')</span>' : '') + '</div>'
+        h += esc(s.name) + ' · <strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong></span></div>'
           + '<div class="tt-l2">' + fmtD(t) + ' · vigente desde ' + fmtIso(r.fecha)
           + (r.firme === false ? ' · <span class="nofirme">por confirmar</span>' : '') + '</div>';
       }
@@ -748,7 +754,7 @@
     // Etiquetas finales dinámicas: valor de cada serie en la fecha del cursor (con la fecha arriba de la columna)
     function etiquetasEn(t) {
       lab.forEach(function (it) {
-        var s = it.s, p = s.kind === 'oil' ? ptLE(s.segs[0].pts, t) : pointAt(s, t);
+        var s = it.s, p = s.kind === 'oil' ? oilEn(s, t) : pointAt(s, t);
         var txt = p && isFinite(tr(s, p.v)) ? valTxt(s, tr(s, p.v)) : '—';
         if (it.valT) { it.valT.text(txt); it.sepT.text(''); it.varT.text(''); }
         if (it.liVal) { it.liVal.textContent = txt; it.liVar.textContent = ''; }
@@ -758,9 +764,9 @@
     }
     function etiquetasFin() {
       lab.forEach(function (it) {
-        var txt = valTxt(it.s, it.v);
+        var txt = txtFin(it);
         if (it.valT) { it.valT.text(txt); it.sepT.text(it.varia ? ' · ' : ''); it.varT.text(it.varia ? it.varia.txt : ''); }
-        if (it.liVal) { it.liVal.textContent = txt; it.liVar.textContent = it.varia ? it.varia.txt : ''; }
+        if (it.liVal) { it.liVal.textContent = it.liTxt || txt; it.liVar.textContent = it.varia ? it.varia.txt : ''; }
       });
       if (fechaCol) fechaCol.style('display', 'none');
       if (liFecha) liFecha.hidden = true;
@@ -770,15 +776,21 @@
        finales, que están a la derecha de iw, ni sale del gráfico): a la derecha del punto, o a la izquierda si no entra;
        arriba del punto, o abajo si no entra. */
     function ubicar(px, py) {
+      // se mide en (0,0) y con el ancho y alto máximos del área de datos: así la medida no depende de la posición previa
+      tip.style.left = '0px'; tip.style.top = '0px';
+      tip.style.maxWidth = Math.max(120, iw - 4) + 'px'; tip.style.maxHeight = Math.max(80, ih) + 'px';
       var tw = tip.offsetWidth, th = tip.offsetHeight, gapP = 12;
-      var minL = m.left + 2, maxR = m.left + iw - 2;
+      var minL = m.left + 2, maxR = m.left + iw - 2, minT = m.top, maxB = m.top + ih;
       var left = m.left + px + gapP;
       if (left + tw > maxR) left = m.left + px - gapP - tw;
-      if (left < minL) left = Math.max(minL, Math.min(maxR - tw, m.left + px - tw / 2));
-      var top = m.top + py - th - gapP;
-      if (top < m.top - 4) top = m.top + py + gapP;
-      if (top + th > m.top + ih + 4) top = Math.max(2, m.top + ih + 4 - th);
-      tip.style.left = Math.round(left) + 'px'; tip.style.top = Math.round(top) + 'px';
+      var alLado = left >= minL;   // entra a un costado del punto: no lo tapa aunque se corra en vertical
+      if (!alLado) left = Math.max(minL, Math.min(maxR - tw, m.left + px - tw / 2));
+      var top = m.top + py - th - gapP;                    // arriba del punto
+      if (top < minT) top = m.top + py + gapP;             // o abajo
+      if (top + th > maxB) {                               // no entra ni arriba ni abajo
+        top = alLado ? Math.max(minT, Math.min(maxB - th, m.top + py - th / 2)) : Math.max(minT, maxB - th);
+      }
+      tip.style.left = Math.round(left) + 'px'; tip.style.top = Math.round(Math.max(minT, top)) + 'px';
     }
     var actual = null;   // {c, t, px} del último punto mostrado
     var porTeclado = false;   // el foco pasa al ✕ solo si el panel se abrió con teclado
@@ -789,11 +801,13 @@
       if (!c) { tip.hidden = true; foco.style('display', 'none'); actual = null; return; }
       actual = { c: c, t: t, px: px };
       tip.className = 'tt' + (modo === 'detalle' ? ' tt-det fijo' : ' tt-c' + (modo === 'fijo' ? ' fijo' : ''));
+      if (modo === 'detalle') { tip.setAttribute('role', 'dialog'); tip.setAttribute('aria-label', 'Detalle de ' + c.s.name); }
+      else { tip.removeAttribute('role'); tip.removeAttribute('aria-label'); }
       tip.innerHTML = modo === 'detalle' ? htmlDetalle(c, t) : htmlCompacto(c, t, modo === 'fijo');
       tip.hidden = false;
-      var fx = x(c.p.d) < 0 ? px : px;   // el foco va sobre la línea, en la fecha del cursor
-      foco.style('display', null).attr('cx', fx).attr('cy', c.y).style('stroke', c.s.color);
-      ubicar(fx, c.y);
+      // el foco va sobre la línea, en la fecha del cursor
+      foco.style('display', null).attr('cx', px).attr('cy', c.y).style('stroke', c.s.color);
+      ubicar(px, c.y);
       var bx = tip.querySelector('.x'); if (bx) { bx.addEventListener('click', function (ev) { ev.stopPropagation(); ocultar(true); }); }
       var bv = tip.querySelector('.tt-ver');
       if (bv) bv.addEventListener('click', function (ev) { ev.stopPropagation(); fijar(px, py, 'detalle'); });
@@ -806,6 +820,7 @@
     }
     function ocultar(force) {
       if (st.pinned && !force) return;
+      if (tip.contains(document.activeElement)) { try { svg.node().focus({ preventScroll: true }); } catch (e) { /* sin foco */ } }
       st.pinned = false; tip.hidden = true; actual = null;
       guia.style('display', 'none'); foco.style('display', 'none');
       etiquetasFin();
@@ -846,7 +861,10 @@
       else return;
       ev.preventDefault();
     });
-    svg.on('focus', function () { if (!st.pinned) kbMostrar('compacto'); });
+    svg.on('focus', function () {
+      var tecl = true; try { tecl = svg.node().matches(':focus-visible'); } catch (e) { /* navegador viejo */ }
+      if (!st.pinned && tecl) kbMostrar('compacto');   // con el mouse no: el click ya ubica el cuadro
+    });
     svg.on('blur', function () { setTimeout(function () { if (!st.pinned && !host.contains(document.activeElement)) ocultar(false); }, 0); });
     // táctil: tocar afuera del gráfico y del cuadro lo cierra
     if (!st.tapAfuera) {
@@ -854,11 +872,14 @@
       document.addEventListener('pointerdown', function (ev) {
         var cs = charts[hostId];
         if (!cs || !cs.pinned || !cs.esc) return;
-        var h = document.getElementById(hostId);
-        if (h && !h.contains(ev.target)) cs.esc();
+        var tt = cs.tipEl;
+        if (tt && tt.contains(ev.target)) return;
+        if (ev.target.classList && ev.target.classList.contains('ov')) return;   // tocar el gráfico mueve el cuadro
+        cs.esc();
       });
     }
     st.esc = function () { ocultar(true); };
+    st.tipEl = tip;
 
     // leyenda
     var lg = document.getElementById(o.leyendaId);

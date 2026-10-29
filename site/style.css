@@ -358,12 +358,13 @@ td a, .ev a { color: var(--link); }
 
 /* Tooltip compacto: una línea con producto y precio, otra chica con fecha y vigencia */
 .tt-c { padding: 6px 10px; max-width: min(280px, calc(100% - 8px)); }
-.tt-l1 { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: .82rem; }
+.tt-l1 { display: flex; align-items: center; gap: 6px; font-size: .82rem; }
+.tt-l1 .tt-f { color: var(--faint); font-size: .9em; }
 .tt-l2 { font-size: .74rem; color: var(--faint); margin-top: 2px; }
 .tt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; margin-right: 6px; vertical-align: middle; }
 .tt-l1 .tt-dot { margin-right: 0; }
 .tt-ver { margin-top: 6px; font: inherit; font-size: .78rem; font-weight: 600; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.tt-det { max-width: min(300px, calc(100% - 8px)); padding-right: 26px; }
+.tt-det { width: 300px; padding-right: 26px; overflow: auto; }
 .tt-det h3 { display: flex; align-items: center; }
 .chart .lbl-fecha { fill: var(--muted); font-weight: 700; }
 .finales .fin-fecha { flex-basis: 100%; font-weight: 700; color: var(--muted); font-size: .78rem; }
