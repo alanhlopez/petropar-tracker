@@ -105,20 +105,34 @@
     });
     TRAMO = mxA ? { a: parse(mxA), b: parse(vpA || finIso), aIso: mxA, bIso: vpA } : null;
 
+    /* Huecos: la ÚNICA fuente es productos[i].huecos = [{desde, hasta}] (hasta null = sin retomar).
+       La línea llega hasta `desde` y no hay línea hasta la fila con fecha `hasta`; nunca se arrastra el precio.
+       Se arman "tramos vivos" [inicio, desde1], [hasta1, desde2], ..., [hastaN, fin]: un tramo puede ser de un solo
+       día (huecos contiguos) y esa fila queda como punto aislado. Una fila dentro de un hueco tampoco desaparece. */
     Object.keys(PRODS).forEach(function (id) {
-      var p = PRODS[id], cut = p.meta.datos_hasta;
-      p.gaps = [];
+      var p = PRODS[id];
       function mk(rows) { return rows.map(function (r) { return { d: parse(r.fecha), v: r.precio, row: r }; }); }
-      if (cut) {
-        var A = p.rows.filter(function (r) { return r.fecha <= cut; });
-        var B = p.rows.filter(function (r) { return r.fecha > cut; });
-        if (A.length) p.segs.push({ pts: mk(A), end: parse(cut) });
-        if (B.length) p.segs.push({ pts: mk(B), end: XMAX });
-        // hueco sin fuente: nunca se arrastra el precio; va de datos_hasta a la primera fila posterior
-        if (A.length && B.length) p.gaps.push({ a: parse(cut), b: parse(B[0].fecha), aIso: cut, bIso: B[0].fecha });
-      } else if (p.rows.length) {
-        p.segs.push({ pts: mk(p.rows), end: XMAX });
+      p.gaps = ((p.meta.huecos || []).map(function (g) {
+        return { aIso: g.desde, bIso: g.hasta || null, a: parse(g.desde), b: g.hasta ? parse(g.hasta) : null };
+      })).sort(function (u, v) { return u.aIso < v.aIso ? -1 : 1; });
+      if (!p.rows.length) return;
+      var live = [], cur = p.rows[0].fecha, k;
+      for (k = 0; k < p.gaps.length; k++) {
+        if (cur <= p.gaps[k].aIso) live.push([cur, p.gaps[k].aIso]);
+        cur = p.gaps[k].bIso;
+        if (!cur) break;
       }
+      if (cur) live.push([cur, finIso]);
+      var usada = {};
+      live.forEach(function (iv) {
+        var rs = p.rows.filter(function (r) { return r.fecha >= iv[0] && r.fecha <= iv[1]; });
+        rs.forEach(function (r) { usada[r.fecha] = true; });
+        if (rs.length) p.segs.push({ pts: mk(rs), end: parse(iv[1]) });
+      });
+      p.rows.forEach(function (r) {
+        if (!usada[r.fecha]) p.segs.push({ pts: mk([r]), end: parse(r.fecha) });   // fila dentro de un hueco: punto aislado
+      });
+      p.segs.sort(function (u, v) { return u.pts[0].d - v.pts[0].d; });
     });
 
     ['wti', 'ulsd'].forEach(function (k) {
@@ -134,7 +148,7 @@
   function seriesPrice(id) {
     var p = PRODS[id];
     if (!p || !p.segs.length) return null;
-    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs, gaps: p.gaps,
+    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs, gaps: p.gaps, rows: p.rows,
       hasMax: p.rows.some(function (r) { return r.tipo_precio === 'max_o_sugerido_venta_publico'; }) };
   }
   function seriesOil(k) {
@@ -146,9 +160,7 @@
   }
   function gapAt(s, t) {
     var gs_ = s.gaps || [];
-    for (var i = 0; i < gs_.length; i++) if (t > gs_[i].a && t < gs_[i].b) return gs_[i];
-    var last = s.segs[s.segs.length - 1];
-    if (s.kind === 'price' && XMAX - last.end > 864e5 * 2 && t > last.end) return { a: last.end, b: null };
+    for (var i = 0; i < gs_.length; i++) if (t > gs_[i].a && (!gs_[i].b || t < gs_[i].b)) return gs_[i];
     return null;
   }
   function firstD(s) { return s.segs[0].pts[0].d; }
@@ -258,6 +270,14 @@
     var activas = all.filter(function (s) { return lastEnd(s) >= xmin && firstD(s) <= xmax; });
     if (index && activas.length) {
       base = new Date(Math.max.apply(null, activas.map(function (s) { return Math.max(+xmin, +firstD(s)); })));
+      // la base no puede caer dentro de un hueco de una serie visible: se corre al fin de ese hueco
+      for (var it = 0, mov = true; mov && it < 20; it++) {
+        mov = false;
+        activas.forEach(function (s) {
+          var hg = gapAt(s, base);
+          if (hg && hg.b) { base = hg.b; mov = true; }
+        });
+      }
       if (base > xmax) base = xmax;
       activas.forEach(function (s) { baseVals[s.id] = baseValue(s, base); });
     }
@@ -461,34 +481,40 @@
         .attr('text-anchor', 'end').attr('font-size', fs - 1).text(function (v) { return dec(v, decR); });
     }
 
-    // puntos no firmes (círculo hueco) y bordes de huecos sin fuente (rombo); fuera del clip para no cortarse en los bordes.
+    // puntos no firmes (círculo hueco), bordes de huecos (rombo) y filas aisladas (punto); fuera del clip para no cortarse.
     // (Sin <title>: el rect de interacción quedaría encima; el cuadro emergente propio explica el hueco.)
     var gm = g.append('g'), nGapMarks = 0, nNoFirme = 0;
     lista.forEach(function (s) {
-      var postGap = {};
-      (s.gaps || []).forEach(function (hg) { postGap[hg.bIso] = true; });
+      var marcado = {}, rr = mobile ? 5 : 6;
+      function rombo(d, v, firme) {
+        if (d < xmin || d > xmax) return;
+        nGapMarks++;
+        var cx = x(d), cy = yOf(s, v);
+        gm.append('path').attr('d', 'M' + cx + ',' + (cy - rr) + 'l' + rr + ',' + rr + 'l' + (-rr) + ',' + rr + 'l' + (-rr) + ',' + (-rr) + 'z')
+          .style('fill', firme ? s.color : 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
+      }
+      // hueco: último punto conocido antes (a) y primero después (b); nunca se arrastra el precio
+      (s.gaps || []).forEach(function (hg) {
+        if ((hg.b && hg.b < xmin) || hg.a > xmax) return;
+        var antes = null, despues = null;
+        s.rows.forEach(function (r) {
+          if (r.fecha <= hg.aIso) antes = r;
+          if (!despues && hg.bIso && r.fecha >= hg.bIso) despues = r;
+        });
+        if (antes) { rombo(hg.a, antes.precio, antes.firme !== false); marcado[+hg.a] = true; if (antes.fecha === hg.aIso) marcado[+parse(antes.fecha)] = true; }
+        if (despues) { rombo(parse(despues.fecha), despues.precio, despues.firme !== false); marcado[+parse(despues.fecha)] = true; }
+      });
       s.segs.forEach(function (sg) {
         sg.pts.forEach(function (p) {
-          if (p.row && p.row.firme === false && p.d >= xmin && p.d <= xmax && !postGap[p.row.fecha]) {
+          if (p.d < xmin || p.d > xmax || marcado[+p.d]) return;
+          var aislada = sg.pts.length === 1 && +sg.end === +p.d;
+          if (p.row && p.row.firme === false) {
             nNoFirme++;
             gm.append('circle').attr('cx', x(p.d)).attr('cy', yOf(s, p.v)).attr('r', mobile ? 3.5 : 4.5)
               .style('fill', 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
+          } else if (aislada) {
+            gm.append('circle').attr('cx', x(p.d)).attr('cy', yOf(s, p.v)).attr('r', mobile ? 3.5 : 4.5).style('fill', s.color);
           }
-        });
-      });
-      // hueco: último punto conocido antes (a) y primero después (b); nunca se arrastra el precio
-      (s.gaps || []).forEach(function (hg) {
-        if (hg.b < xmin || hg.a > xmax) return;
-        var sa = s.segs.filter(function (sg) { return +sg.end === +hg.a; })[0];
-        var sb = s.segs.filter(function (sg) { return +sg.pts[0].d === +hg.b; })[0];
-        if (!sa || !sb) return;
-        var pa = sa.pts[sa.pts.length - 1], pb = sb.pts[0], r = mobile ? 5 : 6;
-        [[hg.a, pa.v, true], [hg.b, pb.v, pb.row && pb.row.firme !== false]].forEach(function (q) {
-          if (q[0] < xmin || q[0] > xmax) return;
-          nGapMarks++;
-          var cx = x(q[0]), cy = yOf(s, q[1]);
-          gm.append('path').attr('d', 'M' + cx + ',' + (cy - r) + 'l' + r + ',' + r + 'l' + (-r) + ',' + r + 'l' + (-r) + ',' + (-r) + 'z')
-            .style('fill', q[2] ? s.color : 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
         });
       });
     });
@@ -569,6 +595,11 @@
       var cand = [];
       lista.forEach(function (s) {
         var p = pointAt(s, t);
+        if (!p) {   // filas aisladas (tramo de un solo día): se "pegan" si el cursor está a pocos px
+          s.segs.forEach(function (sg) {
+            if (sg.pts.length === 1 && +sg.end === +sg.pts[0].d && Math.abs(x(sg.pts[0].d) - px) <= 8) p = sg.pts[0];
+          });
+        }
         if (p) cand.push({ s: s, p: p, y: yOf(s, p.v) });
       });
       var best = null;
@@ -981,13 +1012,10 @@
     if (u.ulsd) o.push('ULSD al ' + fmtIso(u.ulsd));
     el('#frescura').textContent = o.length ? 'Petróleo (EIA): ' + o.join(', ') + '.' : '';
     if (D.generado) el('#generado').textContent = 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
-    var hu = (D.productos || []).filter(function (p) { return p.datos_hasta; }).map(function (p) {
-      // si el scraper ya retomó la serie, el hueco tiene fin
-      var sig = ((PRODS[p.id] || {}).rows || []).filter(function (r) { return r.fecha > p.datos_hasta; })
-        .sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; })[0];
-      return p.nombre + (sig
-        ? ': sin dato entre el ' + fmtIso(p.datos_hasta) + ' y el ' + fmtIso(sig.fecha) + '.'
-        : ': sin dato desde el ' + fmtIso(p.datos_hasta) + '.');
+    var hu = (D.productos || []).filter(function (p) { return (p.huecos || []).length; }).map(function (p) {
+      return p.nombre + ': ' + p.huecos.map(function (h) {
+        return h.hasta ? fmtIso(h.desde) + '\u2013' + fmtIso(h.hasta) : 'desde ' + fmtIso(h.desde) + ' (sin retomar)';
+      }).join(', ') + '.';
     });
     el('#nota-huecos').textContent = hu.length ? 'Hoy: ' + hu.join(' ') : 'Hoy no hay huecos conocidos.';
   }

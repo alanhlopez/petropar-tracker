@@ -101,12 +101,17 @@ def test_reporte_de_conflictos_coincide(construido):
 
 
 def test_fuente_oficial_primero(precios):
-    """Hasta el corte, todo sale del documento oficial; después, nada."""
+    """Hasta el corte, todo sale del documento oficial; después, nada. El documento no trae GLP:
+    para los productos que no cubre, antes del corte valen prensa y capturas de la web de Petropar."""
+    cubiertos = {p["product_id"] for p in precios if p["fuente_url"] == URL_OFICIAL}
+    assert "glp_kg" not in cubiertos and "glp_litro" not in cubiertos
     for p in precios:
-        if p["fecha_vigencia"] <= CORTE_OFICIAL:
+        if p["fecha_vigencia"] > CORTE_OFICIAL:
+            assert p["fuente_url"] != URL_OFICIAL, p
+        elif p["product_id"] in cubiertos:
             assert p["fuente_url"] == URL_OFICIAL, p
         else:
-            assert p["fuente_url"] != URL_OFICIAL, p
+            assert p["fuente_url"], p  # sin documento oficial, igual con fuente
 
 
 def test_sin_extrapolar_hacia_atras(precios):

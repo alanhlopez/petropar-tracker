@@ -45,10 +45,40 @@ def precio_valido(valor: str, donde: str) -> int:
     return precio
 
 
-def productos_json(productos: list[dict]) -> list[dict]:
+def productos_json(productos: list[dict], huecos: dict[str, list[dict]]) -> list[dict]:
     return [{"id": p["product_id"], "nombre": p["nombre_actual"], "tipo": p["tipo"],
              "unidad": p["unidad"], "datos_hasta": p["datos_hasta"] or None,
-             "categoria": p["categoria"]} for p in productos]
+             "categoria": p["categoria"], "huecos": huecos.get(p["product_id"], [])} for p in productos]
+
+
+def huecos_por_producto(productos: list[dict], series: dict[str, list[dict]],
+                        extra: list[dict]) -> dict[str, list[dict]]:
+    """Períodos sin fuente: la línea se corta en `desde` y retoma en la fila de `hasta` (None = sin
+    retomar todavía). Salen de datos_hasta (productos.csv) y de data/huecos.csv."""
+    salida: dict[str, list[dict]] = {p["product_id"]: [] for p in productos}
+    for p in productos:
+        if p["datos_hasta"]:
+            siguiente = next((f["fecha"] for f in series.get(p["product_id"], [])
+                              if f["fecha"] > p["datos_hasta"]), None)
+            salida[p["product_id"]].append({"desde": p["datos_hasta"], "hasta": siguiente})
+    for h in extra:
+        donde = f"huecos.csv ({h['product_id']} {h['desde']!r})"
+        if h["product_id"] not in salida:
+            raise ValueError(f"Hueco de un producto que no está en productos.csv: {donde}")
+        desde, hasta = fecha_valida(h["desde"], donde), fecha_valida(h["hasta"], donde)
+        if not desde < hasta:
+            raise ValueError(f"Hueco con desde >= hasta en {donde}")
+        if not any(f["fecha"] == hasta for f in series.get(h["product_id"], [])):
+            raise ValueError(f"Hueco sin fila que lo cierre en {donde}")
+        salida[h["product_id"]].append({"desde": desde, "hasta": hasta})
+    for lista in salida.values():
+        lista.sort(key=lambda h: h["desde"])
+    return salida
+
+
+def cruza_hueco(huecos: list[dict], antes: str, despues: str) -> bool:
+    """True si entre una fila del día `antes` y el día `despues` hay un período sin fuente."""
+    return any(antes <= h["desde"] < despues for h in huecos)
 
 
 def hace_un_anio(dia: date) -> date:
@@ -58,14 +88,14 @@ def hace_un_anio(dia: date) -> date:
         return dia - timedelta(days=365)
 
 
-def precio_vigente_en(filas: list[dict], dia: str, datos_hasta: str | None) -> dict | None:
+def precio_vigente_en(filas: list[dict], dia: str, huecos: list[dict]) -> dict | None:
     """Fila vigente ese día, o None si no hay dato, si el día cae en un hueco (sin arrastrar
     precios) o si la fecha de vigencia de esa fila no está confirmada (no se sabe si ya regía)."""
     previas = [f for f in filas if f["fecha"] <= dia]
     if not previas:
         return None
     fila = previas[-1]
-    if datos_hasta and fila["fecha"] <= datos_hasta < dia:
+    if cruza_hueco(huecos, fila["fecha"], dia):
         return None
     if fila["fecha_estado"] != "confirmada":
         return None
@@ -77,11 +107,14 @@ def variacion(nuevo: int, viejo: int) -> dict:
     return {"abs": nuevo - viejo, "pct": round((nuevo / viejo - 1) * 100, 1)}
 
 
-def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: date) -> list[dict]:
+def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: date,
+                  huecos: dict[str, list[dict]] | None = None) -> list[dict]:
     """Una tarjeta por producto, en el orden de productos.csv (diésel, naftas por octanaje, GLP)."""
+    huecos = huecos if huecos is not None else huecos_por_producto(productos, series, [])
     tarjetas = []
     for p in productos:
-        pid, hasta = p["product_id"], p["datos_hasta"] or None
+        pid = p["product_id"]
+        hs = huecos.get(pid, [])
         filas = series.get(pid, [])
         if not filas:
             tarjetas.append({"id": pid, "precio": None})
@@ -94,7 +127,7 @@ def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: dat
         anterior = filas[i - 1] if i > 0 else None
         cambio = None
         if anterior:
-            tras_hueco = bool(hasta and anterior["fecha"] <= hasta < filas[i]["fecha"])
+            tras_hueco = cruza_hueco(hs, anterior["fecha"], filas[i]["fecha"])
             antiguedad = (date.fromisoformat(filas[i]["fecha"]) - date.fromisoformat(anterior["fecha"])).days
             cambio = {"desde": filas[i]["fecha"], "precio_anterior": anterior["precio"],
                       "fecha_anterior": anterior["fecha"], "tras_hueco": tras_hueco,
@@ -102,7 +135,7 @@ def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: dat
                       "flecha": not tras_hueco and antiguedad <= DIAS_MAX_FLECHA,
                       **variacion(actual["precio"], anterior["precio"])}
         dia = hace_un_anio(hoy).isoformat()
-        previo = precio_vigente_en(filas, dia, hasta)
+        previo = precio_vigente_en(filas, dia, hs)
         tarjetas.append({
             "id": pid, "precio": actual["precio"], "fecha": actual["fecha"], "unidad": p["unidad"],
             # desde cuándo rige este precio: inicio de la racha final (la última fila puede ser
@@ -175,6 +208,8 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
     ids = {p["product_id"] for p in productos}
     series_oil = petroleo_json(petroleo)
     series = precios_json(precios, ids)
+    extra = leer_csv(data / "huecos.csv") if (data / "huecos.csv").exists() else []
+    huecos = huecos_por_producto(productos, series, extra)
     ahora = ahora or datetime.now(timezone.utc)
     hoy = ahora.astimezone(ASUNCION).date().isoformat()
     return {
@@ -185,9 +220,9 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
             **{s: (v["diario"][-1][0] if v["diario"] else None) for s, v in series_oil.items()},
         },
         "ultima_captura": max((f["captured_at"] for f in precios if f["captured_at"]), default=None),
-        "productos": productos_json(productos),
+        "productos": productos_json(productos, huecos),
         "precios": series,
-        "tarjetas": tarjetas_json(productos, series, ahora.astimezone(ASUNCION).date()),
+        "tarjetas": tarjetas_json(productos, series, ahora.astimezone(ASUNCION).date(), huecos),
         "petroleo": series_oil,
         "presidentes": [{"nombre": p["nombre"], "inicio": p["inicio"], "fin": p["fin"] or None}
                         for p in leer_csv(data / "presidentes.csv")],

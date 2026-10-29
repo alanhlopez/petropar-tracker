@@ -226,3 +226,27 @@ def test_sin_flecha_si_el_precio_anterior_tiene_mas_de_6_meses():
     [a] = bs.tarjetas_json(producto, {"x": viejo}, datetime(2026, 10, 28).date())
     [b] = bs.tarjetas_json(producto, {"x": reciente}, datetime(2026, 10, 28).date())
     assert not a["cambio"]["flecha"] and b["cambio"]["flecha"]
+
+
+def test_huecos_cortan_y_no_se_cruzan(data):
+    """huecos.csv: el precio no se arrastra por el período sin fuente ni en la variación anual."""
+    # la última fila real de glp_kg es del 23/05/2025; después, un hueco hasta una fila nueva
+    agregar_precio(data, "2026-09-01,glp_kg,9500,kg,venta_publico,verificado,confirmada,x,,,")
+    (data / "huecos.csv").write_text("product_id,desde,hasta,nota\nglp_kg,2025-06-01,2026-09-01,prueba\n")
+    datos = bs.construir(data, AHORA)
+    [glp] = [p for p in datos["productos"] if p["id"] == "glp_kg"]
+    assert {"desde": "2025-06-01", "hasta": "2026-09-01"} in glp["huecos"]
+    [t] = [t for t in datos["tarjetas"] if t["id"] == "glp_kg"]
+    assert t["precio"] == 9500 and t["cambio"]["tras_hueco"] and not t["cambio"]["flecha"]
+    assert t["anual"] is None  # hace un año (28/10/2025) cae en el hueco
+
+
+@pytest.mark.parametrize("fila,error", [
+    ("glp_kg,2026-01-01,2025-01-01,x", "desde >= hasta"),
+    ("glp_kg,2025-01-01,2025-06-01,x", "sin fila que lo cierre"),
+    ("no_existe,2025-01-01,2025-06-01,x", "no está en productos.csv"),
+])
+def test_huecos_invalidos_cortan_la_generacion(data, fila, error):
+    (data / "huecos.csv").write_text("product_id,desde,hasta,nota\n" + fila + "\n")
+    with pytest.raises(ValueError, match=error):
+        bs.construir(data, AHORA)

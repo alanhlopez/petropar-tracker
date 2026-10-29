@@ -1,0 +1,6 @@
+product_id,desde,hasta,nota
+glp_litro,2021-05-29,2022-09-16,3.375 desde 29/05/2021; después 4.725 (observado 18/02/2022) sin fecha de inicio
+glp_litro,2022-09-16,2024-03-13,sin fuente entre la baja de sep-2022 y la lista de mar-2024
+glp_litro,2024-08-08,2024-11-15,3.190 visto hasta 08/08/2024; 3.504 visto el 08/11/2024 sin fecha de vigencia confiable
+glp_kg,2023-08-23,2024-03-13,5.500 desde 23/08/2023; después 5.300 (Petropar web 03/03/2024) sin fecha de inicio
+glp_kg,2024-08-08,2024-11-15,5.500 visto hasta 08/08/2024; 5.990 visto el 08/11/2024 sin fecha de vigencia confiable
