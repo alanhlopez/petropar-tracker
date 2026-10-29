@@ -376,3 +376,7 @@ td a, .ev a { color: var(--link); }
 .seg-off span { opacity: .4; cursor: not-allowed; }
 .chart .lbl-con { transition: none; }
 .chart .lbl-nota { fill: var(--faint); }
+/* en celular los grupos con muchas opciones (Vista, Período) pasan a otra línea en vez de salirse de la pantalla */
+.seg-g { flex-wrap: wrap; max-width: 100%; }
+.finales li { flex-wrap: wrap; column-gap: 6px; row-gap: 0; }
+.finales li strong, .finales .var-p { white-space: nowrap; }

@@ -112,11 +112,12 @@ El IPC oficial de Paraguay lo publica el Banco Central del Paraguay (BCP), no el
 permite descargas automáticas, así que `data/ipc.csv` se carga a mano una vez por mes:
 
 1. Bajar el "Anexo Estadístico del Informe Económico" del BCP (https://www.bcp.gov.py, sección Estadísticas)
-   y abrir la hoja del IPC general (base diciembre 2017 = 100).
-2. Copiar la serie mensual desde enero de 2009 a `data/ipc.csv`, una fila por mes:
-   `mes,ipc,fuente,fuente_url,descargado_el` → `2026-09,152.3,"BCP, Anexo Estadístico (IPC general, base dic-2017=100)",https://www.bcp.gov.py/...,2026-10-29`.
-   El valor va con punto decimal y tal cual figura en la planilla (sin redondear).
-3. Correr `python -m etl.build_site_data` y `pytest -q`: el ETL valida formato y meses repetidos.
+   y guardarlo en `data/` (no se commitea: pesa ~9 MB y `.gitignore` lo excluye).
+2. Correr `python -m etl.importar_ipc data/Anexo_Estadístico_del_Informe_Económico_DD_MM_AAAA.xlsx --descargado AAAA-MM-DD`.
+   Lee el Cuadro 15 (IPC del Área Metropolitana de Asunción, serie empalmada, base dic-2017 = 100), columna
+   "Índice general", desde enero de 2009; valida título, base y que no falten meses, y reescribe `data/ipc.csv`
+   (en la columna `fuente` queda el nombre del archivo).
+3. Correr `python -m etl.build_site_data` y `pytest -q`.
 
 Mientras `data/ipc.csv` esté vacío, la vista "Gs constantes" aparece desactivada. El mes base de la
 deflactación es el último cargado.
