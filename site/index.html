@@ -27,6 +27,16 @@
 </header>
 
 <main>
+  <section id="hoy" class="seccion" aria-labelledby="h-hoy">
+    <h2 id="h-hoy">Precios hoy</h2>
+    <p class="hoy-sub">Precios vigentes en estaciones Petropar · Planta Villa Elisa (puede variar a más de 50 km)</p>
+    <p class="hoy-verif" id="verif"></p>
+    <p class="hoy-ir"><a href="#historico">Ver evolución histórica &darr;</a></p>
+    <div class="tarjetas" id="tarjetas"></div>
+  </section>
+
+  <section id="historico" class="seccion" aria-labelledby="h-hist">
+  <h2 id="h-hist" tabindex="-1">Histórico</h2>
   <div class="tabs" role="tablist" aria-label="Tipo de combustible">
     <button role="tab" id="tab-liq" aria-selected="true" aria-controls="panel-liq" class="tab on">Combustibles líquidos</button>
     <button role="tab" id="tab-glp" aria-selected="false" aria-controls="panel-glp" class="tab">GLP (Ñande Gas)</button>
@@ -64,6 +74,7 @@
     <p class="aviso">El GLP (gas de cocina) es otro producto, con otra unidad (kg y litro) y otra escala: por eso va en un gráfico aparte, en Gs por kg y por litro, sin petróleo.</p>
     <div class="chart" id="chart-glp"></div>
     <div class="leyenda" id="leyenda-glp"></div>
+  </section>
   </section>
 
   <section class="bloque">

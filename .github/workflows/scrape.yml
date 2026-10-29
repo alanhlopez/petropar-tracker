@@ -4,7 +4,7 @@ name: scrape
 
 on:
   schedule:
-    - cron: "7 */6 * * *" # 00:07, 06:07, 12:07 y 18:07 en Asunción (UTC-3)
+    - cron: "7 */6 * * *" # 00:07, 06:07, 12:07 y 18:07 UTC = 21:07, 03:07, 09:07 y 15:07 en Asunción (UTC-3)
   workflow_dispatch:
 
 permissions:

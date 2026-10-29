@@ -4,13 +4,16 @@
   fecha_estado, fuente, URLs (lista) y nota para el tooltip.
 - Petróleo en US$/galón: serie diaria (tooltip) y promedio mensual (línea).
 - Presidentes y eventos (solo los que tienen mostrar=true).
+- Tarjetas de "Precios hoy": último precio de cada producto, el cambio contra el precio
+  inmediatamente anterior y la variación contra el precio vigente hace un año (nunca a
+  través de un hueco: si esa fecha cae en un período sin fuente, no hay comparación).
 Si todavía no existe data/petroleo.csv, las series de petróleo salen vacías.
 """
 import argparse
 import json
 import sys
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -42,7 +45,70 @@ def precio_valido(valor: str, donde: str) -> int:
 
 def productos_json(productos: list[dict]) -> list[dict]:
     return [{"id": p["product_id"], "nombre": p["nombre_actual"], "tipo": p["tipo"],
-             "unidad": p["unidad"], "datos_hasta": p["datos_hasta"] or None} for p in productos]
+             "unidad": p["unidad"], "datos_hasta": p["datos_hasta"] or None,
+             "categoria": p["categoria"]} for p in productos]
+
+
+def hace_un_anio(dia: date) -> date:
+    try:
+        return dia.replace(year=dia.year - 1)
+    except ValueError:  # 29 de febrero
+        return dia - timedelta(days=365)
+
+
+def precio_vigente_en(filas: list[dict], dia: str, datos_hasta: str | None) -> dict | None:
+    """Fila vigente ese día, o None si no hay dato, si el día cae en un hueco (sin arrastrar
+    precios) o si la fecha de vigencia de esa fila no está confirmada (no se sabe si ya regía)."""
+    previas = [f for f in filas if f["fecha"] <= dia]
+    if not previas:
+        return None
+    fila = previas[-1]
+    if datos_hasta and fila["fecha"] <= datos_hasta < dia:
+        return None
+    if fila["fecha_estado"] != "confirmada":
+        return None
+    return fila
+
+
+def variacion(nuevo: int, viejo: int) -> dict:
+    # un solo redondeo, a 1 decimal: el sitio lo muestra tal cual
+    return {"abs": nuevo - viejo, "pct": round((nuevo / viejo - 1) * 100, 1)}
+
+
+def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: date) -> list[dict]:
+    """Una tarjeta por producto, en el orden de productos.csv (diésel, naftas por octanaje, GLP)."""
+    tarjetas = []
+    for p in productos:
+        pid, hasta = p["product_id"], p["datos_hasta"] or None
+        filas = series.get(pid, [])
+        if not filas:
+            tarjetas.append({"id": pid, "precio": None})
+            continue
+        actual = filas[-1]
+        # inicio de la racha final de precio igual: ahí fue el último cambio
+        i = len(filas) - 1
+        while i > 0 and filas[i - 1]["precio"] == actual["precio"]:
+            i -= 1
+        anterior = filas[i - 1] if i > 0 else None
+        cambio = None
+        if anterior:
+            cambio = {"desde": filas[i]["fecha"], "precio_anterior": anterior["precio"],
+                      "fecha_anterior": anterior["fecha"],
+                      "tras_hueco": bool(hasta and anterior["fecha"] <= hasta < filas[i]["fecha"]),
+                      **variacion(actual["precio"], anterior["precio"])}
+        dia = hace_un_anio(hoy).isoformat()
+        previo = precio_vigente_en(filas, dia, hasta)
+        tarjetas.append({
+            "id": pid, "precio": actual["precio"], "fecha": actual["fecha"], "unidad": p["unidad"],
+            # desde cuándo rige este precio: inicio de la racha final (la última fila puede ser
+            # una reconfirmación del mismo precio)
+            "vigente_desde": filas[i]["fecha"], "fecha_vigencia_confirmada": filas[i]["fecha_estado"] == "confirmada",
+            "estado": actual["estado"], "fecha_estado": actual["fecha_estado"],
+            "por_confirmar": not actual["firme"], "cambio": cambio,
+            "anual": ({"fecha": dia, "precio": previo["precio"], **variacion(actual["precio"], previo["precio"])}
+                      if previo else None),
+        })
+    return tarjetas
 
 
 def precios_json(precios: list[dict], ids: set[str]) -> dict[str, list[dict]]:
@@ -103,6 +169,7 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
     petroleo = leer_csv(data / "petroleo.csv") if (data / "petroleo.csv").exists() else []
     ids = {p["product_id"] for p in productos}
     series_oil = petroleo_json(petroleo)
+    series = precios_json(precios, ids)
     ahora = ahora or datetime.now(timezone.utc)
     hoy = ahora.astimezone(ASUNCION).date().isoformat()
     return {
@@ -112,8 +179,10 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
             "petropar": max((f["fecha_vigencia"] for f in precios if f["fecha_vigencia"] <= hoy), default=None),
             **{s: (v["diario"][-1][0] if v["diario"] else None) for s, v in series_oil.items()},
         },
+        "ultima_captura": max((f["captured_at"] for f in precios if f["captured_at"]), default=None),
         "productos": productos_json(productos),
-        "precios": precios_json(precios, ids),
+        "precios": series,
+        "tarjetas": tarjetas_json(productos, series, ahora.astimezone(ASUNCION).date()),
         "petroleo": series_oil,
         "presidentes": [{"nombre": p["nombre"], "inicio": p["inicio"], "fin": p["fin"] or None}
                         for p in leer_csv(data / "presidentes.csv")],

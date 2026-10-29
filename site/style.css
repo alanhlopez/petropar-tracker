@@ -14,6 +14,8 @@
   --hito: #52514e;
   --promo: #2f6f8f;
   --accent: #2a78d6;
+  --sube: #b42318;
+  --baja: #067647;
   --c-diesel_mbarete: #2a78d6;
   --c-diesel_pora: #eb6834;
   --c-nafta_aratiri97: #1baf7a;
@@ -40,6 +42,8 @@
   --hito: #c3c2b7;
   --promo: #6fb0d0;
   --accent: #3987e5;
+  --sube: #ff8f86;
+  --baja: #5fd08a;
   --c-diesel_mbarete: #3987e5;
   --c-diesel_pora: #d95926;
   --c-nafta_aratiri97: #199e70;
@@ -183,3 +187,49 @@ td a, .ev a { color: var(--accent); }
   td.prod::before { content: none; }
   td.prod { font-weight: 700; }
 }
+
+/* secciones */
+.seccion { margin-top: 18px; scroll-margin-top: 8px; }
+.seccion > h2 { font-size: 1.35rem; margin: 0 0 4px; }
+.hoy-sub { margin: 0 0 2px; color: var(--muted); }
+.hoy-verif { margin: 0 0 4px; font-size: .86rem; font-weight: 600; }
+.hoy-ir { margin: 0 0 10px; font-size: .9rem; }
+.hoy-ir a { color: var(--accent); }
+.tarjetas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .tarjetas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .tarjetas { grid-template-columns: minmax(0, 1fr); } }
+.tarjeta {
+  font: inherit; color: var(--text); text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--tc, var(--border));
+  border-radius: 10px; padding: 12px 14px; min-width: 0;
+}
+.tarjeta:hover { border-color: var(--text); border-top-color: var(--tc, var(--text)); }
+.tarjeta:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tarjeta > span { display: block; }
+.t-nombre { font-weight: 700; font-size: 1.05rem; }
+.t-cat { color: var(--muted); font-size: .85rem; }
+.t-precio { font-size: 1.7rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.t-precio small { font-size: .95rem; font-weight: 600; color: var(--muted); }
+.t-nd { font-size: 1.1rem; color: var(--muted); }
+.t-meta { font-size: .8rem; color: var(--muted); }
+.t-pc { align-self: flex-start; font-size: .8rem; font-weight: 700; border: 1px solid var(--text); border-radius: 999px; padding: 1px 8px; }
+.t-cambio { font-size: .88rem; font-weight: 700; }
+.t-cambio.sube { color: var(--sube); }
+.t-cambio.baja { color: var(--baja); }
+.t-neutro, .t-anual { color: var(--muted); font-size: .86rem; font-weight: 400; }
+.t-anual strong { color: var(--text); }
+.t-sp { margin-top: 4px; }
+.t-spark { width: 100%; height: auto; display: block; }
+.t-spark path { stroke-linecap: round; }
+.t-spark-lb, .t-spark-no { font-size: .72rem; color: var(--muted); }
+.t-ir { margin-top: auto; padding-top: 4px; font-size: .8rem; color: var(--accent); }
+.chart .hito-halo { stroke: var(--bg); stroke-width: 5; }
+.t-cab { display: block; }
+.t-cab .t-nombre, .t-cab .t-cat { display: block; }
+
+.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.hoy-nd { color: var(--muted); margin: 8px 0; }
+.tarjeta > .t-bloque { display: flex; flex-direction: column; gap: 4px; }
+.t-bloque + .t-bloque { border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 4px; }
+.t-rot { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#h-hist:focus { outline: none; }

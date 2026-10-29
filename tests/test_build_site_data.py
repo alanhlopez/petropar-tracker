@@ -126,3 +126,76 @@ def test_ultimo_dato_no_adelanta_fechas_futuras(data):
     datos = bs.construir(data, AHORA)
     assert datos["ultimo_dato"]["petropar"] == antes
     assert datos["precios"]["diesel_pora"][-1]["fecha"] == "2099-01-01"  # la fila igual se publica
+
+
+# --- tarjetas de "Precios hoy" -------------------------------------------------
+
+def test_tarjetas_muestran_el_ultimo_precio_del_csv_y_el_cambio_contra_el_anterior():
+    """Contra el CSV real: precio = última fila; cambio = contra el precio distinto inmediatamente anterior."""
+    datos = bs.construir(ahora=AHORA)
+    por_producto: dict[str, list[dict]] = {}
+    for f in sorted(leer_csv(DATA / "precios_petropar.csv"), key=lambda f: f["fecha_vigencia"]):
+        por_producto.setdefault(f["product_id"], []).append(f)
+    orden = [p["product_id"] for p in leer_csv(DATA / "productos.csv")]
+    assert [t["id"] for t in datos["tarjetas"]] == orden
+    for t in datos["tarjetas"]:
+        filas = por_producto.get(t["id"], [])
+        if not filas:
+            assert t["precio"] is None
+            continue
+        ultima = filas[-1]
+        assert (t["precio"], t["fecha"]) == (int(ultima["precio_gs"]), ultima["fecha_vigencia"])
+        assert t["por_confirmar"] == ((ultima["estado"], ultima["fecha_estado"]) != ("verificado", "confirmada"))
+        distintas = [f for f in filas if f["precio_gs"] != ultima["precio_gs"]]
+        if not distintas:
+            assert t["cambio"] is None
+            continue
+        anterior = int(distintas[-1]["precio_gs"])
+        assert t["cambio"]["precio_anterior"] == anterior
+        assert t["cambio"]["abs"] == t["precio"] - anterior
+        assert t["cambio"]["pct"] == round((t["precio"] / anterior - 1) * 100, 1)
+        # rige desde el inicio de la racha final de ese precio, no desde la última reconfirmación
+        i = len(filas) - 1
+        while i > 0 and filas[i - 1]["precio_gs"] == ultima["precio_gs"]:
+            i -= 1
+        assert t["vigente_desde"] == t["cambio"]["desde"] == filas[i]["fecha_vigencia"]
+
+
+def serie(*filas, fecha_estado="confirmada"):
+    return [{"fecha": f, "precio": p, "estado": "verificado", "fecha_estado": fecha_estado,
+             "firme": fecha_estado == "confirmada"} for f, p in filas]
+
+
+def test_tarjeta_cambio_desde_el_inicio_de_la_racha_y_variacion_anual():
+    producto = [{"product_id": "x", "unidad": "litro", "datos_hasta": ""}]
+    filas = serie(("2025-06-01", 6000), ("2026-02-01", 7000), ("2026-05-01", 7500), ("2026-08-01", 7500))
+    [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
+    assert t["precio"] == 7500 and t["fecha"] == "2026-08-01"
+    assert t["cambio"] == {"desde": "2026-05-01", "precio_anterior": 7000, "fecha_anterior": "2026-02-01",
+                           "tras_hueco": False, "abs": 500, "pct": 7.1}
+    assert t["vigente_desde"] == "2026-05-01" and t["fecha_vigencia_confirmada"]
+    assert t["anual"] == {"fecha": "2025-10-28", "precio": 6000, "abs": 1500, "pct": 25.0}
+
+
+def test_tarjeta_no_compara_a_traves_de_un_hueco():
+    producto = [{"product_id": "x", "unidad": "litro", "datos_hasta": "2024-12-31"}]
+    filas = serie(("2024-11-08", 7730), ("2026-10-29", 7330))
+    [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
+    assert t["anual"] is None  # hace un año cae en el hueco: no se arrastra 7.730
+    assert t["cambio"]["tras_hueco"] and t["cambio"]["abs"] == -400
+
+
+def test_tarjeta_sin_historia_previa_ni_datos():
+    productos = [{"product_id": "a", "unidad": "kg", "datos_hasta": ""},
+                 {"product_id": "b", "unidad": "litro", "datos_hasta": ""}]
+    a, b = bs.tarjetas_json(productos, {"a": serie(("2026-01-10", 7374))}, datetime(2026, 10, 28).date())
+    assert a["cambio"] is None and a["anual"] is None  # empezó hace menos de un año
+    assert b == {"id": "b", "precio": None}
+
+
+def test_sin_variacion_anual_si_la_vigencia_de_hace_un_anio_no_esta_confirmada():
+    # caso GLP: única fila con vigencia publicada 2025-05-23 pero a_confirmar
+    producto = [{"product_id": "x", "unidad": "kg", "datos_hasta": ""}]
+    filas = serie(("2025-05-23", 7374), fecha_estado="a_confirmar")
+    [t] = bs.tarjetas_json(producto, {"x": filas}, datetime(2026, 10, 28).date())
+    assert t["anual"] is None and t["por_confirmar"] and not t["fecha_vigencia_confirmada"]

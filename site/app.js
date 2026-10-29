@@ -2,6 +2,10 @@
 (function () {
   'use strict';
 
+  // Repo y workflow cuya última corrida exitosa da la hora de "Última verificación" (API pública de GitHub, sin token).
+  var GH_REPO = 'alanhlopez/petropar-tracker';
+  var GH_WORKFLOW = 'scrape.yml';
+
   var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   var CORTOS = {
     diesel_mbarete: 'Mbarete', diesel_pora: 'Porã', nafta_aratiri97: 'Aratiri',
@@ -382,29 +386,25 @@
     }).filter(function (v) { return v.a && (v.b || v.a) >= xmin && v.a <= xmax; });
     // promos: banda con trama si hay fecha_fin posterior a fecha; si no, marcador ▲ sobre el eje X.
     // Solo en combustibles líquidos (o.sinPromos en GLP). Van debajo de la franja reservada para hitos.
-    // Si una promo queda a menos de ~6 px de un hito, la promo ocupa la mitad inferior y la línea del hito se corta
-    // donde empieza la promo, para que no se fundan.
+    // Colisión con hitos: la banda es siempre de altura completa; el hito se dibuja encima con un contorno del color
+    // de fondo (halo), así se distingue aunque quede a pocos px de la banda.
     var hitosV = evs.filter(function (v) { return v.e.tipo !== 'promo'; });
     var promosV = o.sinPromos ? [] : evs.filter(function (v) { return v.e.tipo === 'promo'; });
-    var hitoFin = hitosV.map(function () { return ih; });
-    var mid = band + (ih - band) / 2, hayBanda = false, hayTri = false;
+    var hitoFin = hitosV.map(function () { return ih; });   // fin de la línea del hito (se acorta si cae sobre un ▲)
+    var hayBanda = false, hayTri = false;
     promosV.forEach(function (v) {
       var x1 = x(v.a), span = v.b && v.b > v.a, x2 = span ? x(v.b) : x1;
       var w = span ? Math.max(6, x2 - x1) : 11, xa = (x1 + x2) / 2 - w / 2, xb = xa + w;
-      var col = false;
-      hitosV.forEach(function (h, k) {
-        var hx = x(h.a);
-        if (hx >= xa - 6 && hx <= xb + 6) { col = true; hitoFin[k] = Math.min(hitoFin[k], span ? mid : ih - 14); }
-      });
       if (span) {
         hayBanda = true;
-        var y0 = col ? mid : band;
+        var y0 = band;   // la banda siempre cubre toda la altura del área de datos
         gc.append('rect').attr('x', xa).attr('width', w).attr('y', y0).attr('height', ih - y0)
           .style('fill', 'url(#' + uid + 'p)').attr('opacity', 0.7);
         gc.append('rect').attr('x', xa).attr('width', w).attr('y', y0).attr('height', ih - y0)
           .attr('fill', 'none').style('stroke', 'var(--promo)').attr('stroke-width', 1.2);
       } else {
         hayTri = true;
+        hitosV.forEach(function (h, k) { if (Math.abs(x(h.a) - x1) < 9) hitoFin[k] = Math.min(hitoFin[k], ih - 14); });
         gc.append('path').attr('d', 'M' + (x1 - 5.5) + ',' + ih + 'l5.5,-9l5.5,9z').style('fill', 'var(--promo)')
           .style('stroke', 'var(--bg)').attr('stroke-width', 1);
       }
@@ -412,6 +412,7 @@
     // hitos: líneas desde debajo de la franja superior (así no cruzan ninguna etiqueta) y rótulos con halo en la franja
     hitosV.forEach(function (v, k) {
       var xx = x(v.a);
+      g.append('line').attr('class', 'hito-halo').attr('x1', xx).attr('x2', xx).attr('y1', band).attr('y2', hitoFin[k]);
       g.append('line').attr('class', 'hito-l').attr('x1', xx).attr('x2', xx).attr('y1', band).attr('y2', hitoFin[k]);
     });
     hitosV.forEach(function (v, k) {
@@ -740,6 +741,160 @@
   }
   function render() { if (!D) return; if (state.tab === 'liq') renderLiq(); else renderGlp(); }
 
+
+  /* ---------- Sección 1: Precios hoy (todo viene calculado en data.json; acá solo se renderiza) ---------- */
+  var HOY = null;   // YYYY-MM-DD en America/Asuncion
+  function hoyAsuncion() {
+    try { return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Asuncion' }); } catch (e) { return iso(new Date()); }
+  }
+  function fmtAsu(isoTs) {
+    try {
+      var p = {};
+      new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Asuncion', day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(isoTs)).forEach(function (q) { p[q.type] = q.value; });
+      if (p.hour === '24') p.hour = '00';
+      return p.day + '/' + p.month + '/' + p.year + ' ' + p.hour + ':' + p.minute;
+    } catch (e) { return ''; }
+  }
+  function signo(n) { return n > 0 ? '+' : (n < 0 ? '−' : ''); }
+  // c.pct ya viene redondeado a 1 decimal desde data.json; dec(...,1) solo lo muestra con coma (ej. 20,0)
+  function cambioHtml(c, conf) {
+    if (!c) return '<span class="t-cambio t-neutro">Sin cambios registrados</span>';
+    var cls = c.abs > 0 ? 'sube' : (c.abs < 0 ? 'baja' : 'igual');
+    var flecha = c.abs > 0 ? '\u25B2 ' : (c.abs < 0 ? '\u25BC ' : '');
+    var txt = signo(c.abs) + 'G. ' + miles(Math.abs(c.abs)) + ' (' + signo(c.pct) + dec(Math.abs(c.pct), 1) + '%)';
+    var cola = '';
+    if (c.tras_hueco) cola = ' vs. G. ' + miles(c.precio_anterior) + ', \u00faltimo dato con fuente' + (c.fecha_anterior ? ' (' + fmtIso(c.fecha_anterior) + ')' : '');
+    else if (c.desde && conf) cola = ' desde el ' + fmtIso(c.desde);
+    return '<span class="t-cambio ' + cls + '">' + flecha + esc(txt + cola) + '</span>';
+  }
+  function anualHtml(a, conf) {
+    if (!a) return '<span class="t-anual">' + (conf ? 'Sin dato de hace un año' : 'Sin dato confirmado de hace un año') + '</span>';
+    return '<span class="t-anual"><strong>' + signo(a.pct) + dec(Math.abs(a.pct), 1) + '%</strong> vs. hace un año</span>';
+  }
+  function vigenciaHtml(t) {
+    var futuro = t.vigente_desde && t.vigente_desde > HOY, txt;
+    if (!t.fecha_vigencia_confirmada || !t.vigente_desde) {
+      txt = futuro ? 'Precio publicado por Petropar; fecha de vigencia por confirmar' : 'Fecha de vigencia por confirmar';
+    } else {
+      txt = (futuro ? 'Rige desde ' : 'Vigente desde ') + fmtIso(t.vigente_desde);
+    }
+    return '<span class="t-meta">' + esc(txt) + '</span>';
+  }
+  // sparkline de 12 meses: step-after, respeta huecos (cada segmento por separado), sin ejes
+  function sparkHtml(id, color) {
+    var p = PRODS[id];
+    if (!p) return '';
+    var t1 = parse(HOY), t0 = new Date(Date.UTC(t1.getUTCFullYear() - 1, t1.getUTCMonth(), t1.getUTCDate()));
+    var pieces = [];
+    p.segs.forEach(function (sg) {
+      var a = Math.max(+t0, +sg.pts[0].d), b = Math.min(+t1, +sg.end);
+      if (a > b) return;
+      var pts = [], i0 = bisD(sg.pts, new Date(a)) - 1;
+      pts.push({ d: new Date(a), v: sg.pts[Math.max(0, i0)].v, row: sg.pts[Math.max(0, i0)].row });
+      sg.pts.forEach(function (q) { if (+q.d > a && +q.d <= b) pts.push({ d: q.d, v: q.v, row: q.row }); });
+      pts.push({ d: new Date(b), v: pts[pts.length - 1].v, row: pts[pts.length - 1].row });
+      pieces.push(pts);
+    });
+    if (!pieces.length) return '<span class="t-spark-no">Sin datos en 12 meses</span>';
+    var W = 240, Hh = 44, vals = [], todoNoFirme = true;
+    pieces.forEach(function (pc) { pc.forEach(function (q) { vals.push(q.v); if (!q.row || q.row.firme !== false) todoNoFirme = false; }); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var xs = d3.scaleUtc().domain([t0, t1]).range([3, W - 5]);
+    var ys = d3.scaleLinear().domain(lo === hi ? [lo - 1, hi + 1] : [lo, hi]).range([Hh - 5, 5]);
+    var ln = d3.line().x(function (q) { return xs(q.d); }).y(function (q) { return ys(q.v); }).curve(d3.curveStepAfter);
+    var h = '<svg class="t-spark" viewBox="0 0 ' + W + ' ' + Hh + '" aria-hidden="true" focusable="false">';
+    pieces.forEach(function (pc) { h += '<path d="' + ln(pc) + '" fill="none" stroke-width="2" stroke-linejoin="round"'
+      + (todoNoFirme ? ' stroke-dasharray="5 4" opacity="0.6"' : '') + ' style="stroke:' + color + '"/>'; });
+    var lp = pieces[pieces.length - 1], q = lp[lp.length - 1];
+    h += '<circle cx="' + xs(q.d) + '" cy="' + ys(q.v) + '" r="2.8" style="fill:' + color + '"/></svg>';
+    return h + '<span class="t-spark-lb">Últimos 12 meses' + (todoNoFirme ? ' \u00b7 fecha por confirmar' : '') + '</span>';
+  }
+  function renderTarjetas() {
+    var box = el('#tarjetas'); if (!box) return;
+    HOY = hoyAsuncion();
+    if (!(D.tarjetas || []).length) { box.innerHTML = '<p class="hoy-nd">No disponible: este sitio todavía no trae los precios de hoy.</p>'; return; }
+    var T = {}; (D.tarjetas || []).forEach(function (t) { T[t.id] = t; });
+    var cat = {}; (D.productos || []).forEach(function (p) { cat[p.id] = p; });
+    var cards = [], usados = {};
+    (D.tarjetas || []).forEach(function (t) {
+      if (usados[t.id]) return;
+      var m = cat[t.id] || {};
+      if (t.id === 'glp_kg' || t.id === 'glp_litro') {
+        usados.glp_kg = usados.glp_litro = true;
+        cards.push({ id: 'glp', kg: T.glp_kg, lt: T.glp_litro, main: T.glp_kg || T.glp_litro, nombre: 'Ñande Gas (GLP)', cat: (cat.glp_kg || cat.glp_litro || {}).categoria || 'GLP', spark: 'glp_kg' });
+      } else {
+        usados[t.id] = true;
+        cards.push({ id: t.id, main: t, nombre: m.nombre || t.id, cat: m.categoria || '', spark: t.id });
+      }
+    });
+    function bloque(x, rotulo) {
+      if (!x || x.precio == null) return '<span class="t-bloque">' + (rotulo ? '<span class="t-rot">' + esc(rotulo) + '</span>' : '') + '<span class="t-precio t-nd">Sin datos</span></span>';
+      var conf = !!x.fecha_vigencia_confirmada;
+      return '<span class="t-bloque">'
+        + '<span class="t-precio">G. ' + miles(x.precio) + ' <small>/' + esc(x.unidad) + '</small></span>'
+        + vigenciaHtml(x)
+        + (x.por_confirmar ? '<span class="t-pc">\u26A0 por confirmar</span>' : '')
+        + cambioHtml(x.cambio, conf) + anualHtml(x.anual, conf) + '</span>';
+    }
+    box.innerHTML = cards.map(function (c) {
+      var color = c.id === 'glp' ? cvar('glp_kg') : cvar(c.id), t = c.main;
+      var cuerpo, spId = c.spark;
+      if (c.id === 'glp') {
+        cuerpo = bloque(c.kg, 'Por kg') + bloque(c.lt, 'Por litro');
+        if (!(c.kg && c.kg.precio != null)) spId = 'glp_litro';
+      } else {
+        cuerpo = bloque(t);
+      }
+      var hayPrecio = !!(t && t.precio != null) || !!(c.lt && c.lt.precio != null);
+      return '<button type="button" class="tarjeta" data-id="' + esc(c.id) + '" style="--tc:' + color + '">'
+        + '<span class="t-cab"><span class="t-nombre">' + esc(c.nombre) + '</span><span class="t-cat">' + esc(c.cat) + '</span></span>'
+        + cuerpo
+        + '<span class="t-sp">' + (hayPrecio ? sparkHtml(spId, color) : '') + '</span>'
+        + '<span class="sr-only"> \u2014 ver en el gráfico histórico</span>'
+        + '<span class="t-ir" aria-hidden="true">Ver en el gráfico \u2193</span></button>';
+    }).join('');
+    box.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('.tarjeta') : null;
+      if (b) irAlGrafico(b.getAttribute('data-id'));
+    });
+  }
+  function irAlGrafico(id) {
+    if (id === 'glp') {
+      if (state.tab !== 'glp') el('#tab-glp').click(); else render();
+    } else {
+      if (state.tab !== 'liq') el('#tab-liq').click();
+      state.sel = new Set([id]);
+      document.querySelectorAll('#ctl-prod input[type=checkbox]').forEach(function (i) { i.checked = state.sel.has(i.value); });
+      render();
+    }
+    var sec = document.getElementById('historico'), calmo = false;
+    try { calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* sin matchMedia */ }
+    if (sec && sec.scrollIntoView) sec.scrollIntoView({ behavior: calmo ? 'auto' : 'smooth', block: 'start' });
+    var hh = document.getElementById('h-hist');   // el foco pasa al título del Histórico (tabindex=-1)
+    if (hh && hh.focus) { try { hh.focus({ preventScroll: true }); } catch (e) { hh.focus(); } }
+  }
+  // Hora de la última verificación: API pública de GitHub (timeout corto, nunca bloquea); si falla, data.ultima_captura
+  function verificacion() {
+    var v = el('#verif'); if (!v) return;
+    var cap = D.ultima_captura ? fmtAsu(D.ultima_captura) : '';
+    v.textContent = cap ? 'Último cambio capturado: ' + cap + ' (hora de Asunción)' : '';
+    try {
+      var ctl = window.AbortController ? new AbortController() : null;
+      var to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
+      fetch('https://api.github.com/repos/' + GH_REPO + '/actions/workflows/' + GH_WORKFLOW + '/runs?status=success&per_page=1',
+        { headers: { Accept: 'application/vnd.github+json' }, signal: ctl ? ctl.signal : undefined })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) {
+          clearTimeout(to);
+          var t = j && j.workflow_runs && j.workflow_runs[0] && j.workflow_runs[0].updated_at;
+          var f = t ? fmtAsu(t) : '';
+          if (f) v.textContent = 'Última verificación: ' + f + ' (hora de Asunción)';
+        })
+        .catch(function () { /* queda el texto de respaldo */ });
+    } catch (e) { /* queda el texto de respaldo */ }
+  }
+
   /* ---------- tabla y eventos ---------- */
   function renderTabla() {
     var h = '<table><thead><tr><th>Producto</th><th>Precio</th><th>Vigente desde</th><th>Tipo de precio</th><th>Estado</th><th>Fecha</th><th>Fuente</th></tr></thead><tbody>';
@@ -845,7 +1000,7 @@
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderTabla(); renderEventos(); wireControls();
+    textos(); buildChips(); renderTarjetas(); verificacion(); renderTabla(); renderEventos(); wireControls();
     /* Parámetros de URL (para compartir o capturar): ?rango=all|10|5|2 y ?pestana=glp */
     try {
       var qp = new URLSearchParams(location.search), rg = qp.get('rango');
