@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: commit-main
+  group: commit-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:

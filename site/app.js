@@ -401,7 +401,7 @@
           .call(function (a) { a.select('.domain').remove(); }).selectAll('text').attr('font-size', fs);
       }
       g.append('text').attr('x', iw + axisR).attr('text-anchor', 'end').attr('y', -9).attr('font-size', mobile ? 10 : 11.5)
-        .text(mobile ? 'US$/gal' : 'US$ por galón (' + o.oil.short + ')');
+        .text(mobile ? 'US$/gal (' + o.oil.short + ')' : 'US$ por galón (' + o.oil.short + ')');
     }
 
     // eventos
@@ -1171,7 +1171,7 @@
     if (OG) {
       var u = D.ultimo_dato || {}, pf = document.createElement('p');
       pf.className = 'og-fuente';
-      pf.textContent = 'Gs por litro (nominal) y crudo ' + OIL_NOMBRE[state.oil] + ' en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
+      pf.textContent = 'Gs por litro (nominal) y ' + (OIL_NOMBRE[state.oil] || 'petróleo') + ' en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
         + fmtIso(u.petropar || '') + '. combuspy-tracker.vercel.app';
       el('#chart-liq').after(pf);
     }
