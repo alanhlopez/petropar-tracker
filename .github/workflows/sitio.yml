@@ -44,9 +44,11 @@ jobs:
           # "generado" cambia en cada corrida: commitear solo si cambió algo más
           if ! cmp -s <(git show HEAD:site/data.json | jq -cS 'del(.generado)') \
                       <(jq -cS 'del(.generado)' site/data.json); then
+            # imagen para compartir (og:image): solo cuando cambian los datos, no en cada corrida diaria de oil.yml
+            python -m etl.og_image || echo "::warning::No se pudo regenerar site/og.png; queda la anterior."
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add site/data.json
+            git add site/data.json site/og.png
             git commit -m "Sitio: data.json regenerado"
             git pull --rebase origin main
             git push origin HEAD:main

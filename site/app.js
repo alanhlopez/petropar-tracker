@@ -22,6 +22,10 @@
   var FECHA_ESTADO_TXT = { confirmada: 'confirmada', a_confirmar: 'a confirmar' };
 
   var parse = d3.utcParse('%Y-%m-%d');
+  // ?og=1: modo imagen para compartir (1200×630, solo título y gráfico); lo captura etl/og_image.py en el build
+  var OG = false;
+  try { OG = new URLSearchParams(location.search).get('og') === '1'; } catch (e) { /* sin parámetros */ }
+  if (OG) document.documentElement.classList.add('modo-og');
   var state = { vista: 'dual', oil: 'wti', rango: 'all', tab: 'liq', sel: null };
   var D = null;          // datos crudos
   var PRODS = {};        // id -> {meta, segs}
@@ -33,8 +37,7 @@
      El tema se fija con data-theme en <html> (script inline en index.html, antes del primer pintado).
      Claro por defecto; no sigue prefers-color-scheme. Se recuerda en localStorage (siempre en try/catch).
      ?tema=oscuro | ?tema=claro fuerza el tema solo para esa visita (útil para capturas).
-     IMPORTANTE: si algún día se agrega exportar/descargar imagen del gráfico, la exportación debe
-     forzar el tema claro (fondo #fcfcfb, tinta oscura), sin importar el tema activo en pantalla. */
+     La exportación a PNG (exportarPng) siempre sale en tema claro, sin importar el tema activo en pantalla. */
   function temaActual() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'oscuro' : 'claro'; }
   function metaCS() {
     var mt = document.getElementById('meta-cs');
@@ -733,42 +736,51 @@
   function liquidos() { return (D.productos || []).filter(function (p) { return p.tipo !== 'glp'; }); }
   function glps() { return (D.productos || []).filter(function (p) { return p.tipo === 'glp'; }); }
 
-  function renderLiq() {
+  // Opciones de cada gráfico: las usa la pantalla y también la exportación a PNG
+  function optsLiq() {
     var sel = liquidos().filter(function (p) { return state.sel.has(p.id); })
       .map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
     var oil = state.oil === 'none' ? null : seriesOil(state.oil);
-    var av = el('#aviso-vista');
-    var msgBase = '';
-    if (state.oil !== 'none' && !oil) msgBase = 'No hay datos de ' + OIL_NOMBRE[state.oil] + ' en data.json. ';
-    if (state.vista === 'dual' && oil) {
-      av.textContent = msgBase + 'Doble eje: la escala izquierda (Gs por litro) y la derecha (US$ por galón) son independientes. No compares alturas entre combustibles y petróleo.';
-    } else {
-      av.textContent = msgBase;
-    }
-    drawChart('chart-liq', {
+    return {
       series: sel, oil: oil, view: state.vista, rango: state.rango, leyendaId: 'leyenda-liq',
       vacio: 'Elegí al menos un producto para ver el gráfico.',
-      aria: 'Precios de combustibles de Petropar y petróleo internacional, serie histórica',
-      onInfo: function (i) {
-        if (state.vista === 'index') {
-          av.textContent = msgBase + (i.base
-            ? 'Índice base 100: en ' + fmtD(i.base) + ' (primera fecha del período con todas las series visibles) cada serie vale 100.'
-            : 'Índice base 100: no hay series con datos en este período.');
-        }
-      }
-    });
+      aria: 'Precios de combustibles de Petropar y petróleo internacional, serie histórica'
+    };
   }
-  function renderGlp() {
-    var sel = glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
-    drawChart('chart-glp', {
-      series: sel, oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
+  function optsGlp() {
+    return {
+      series: glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean),
+      oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
       xDesdeDatos: true, sinPromos: true,
       vacio: 'Sin datos todavía. El GLP (Ñande Gas) entra con la primera captura del scraper.',
       ejeL: 'Gs por kg / por litro',
       unidadTxt: function (s) { return PRODS[s.id].meta.unidad === 'kg' ? 'por kg' : 'por litro'; },
       aria: 'Precios del GLP Ñande Gas'
-    });
-    if (!sel.length) { var lg = el('#leyenda-glp'); if (lg) lg.innerHTML = ''; }
+    };
+  }
+  // Nota chica bajo el gráfico (debajo del eje derecho): doble eje o base del índice
+  function notaVista(base) {
+    var msg = '';
+    if (state.oil !== 'none' && !seriesOil(state.oil)) msg = 'No hay datos de ' + OIL_NOMBRE[state.oil] + ' en data.json. ';
+    if (state.vista === 'index') {
+      msg += base ? 'Índice base 100: en ' + fmtD(base) + ' (primera fecha del período con todas las series visibles) cada serie vale 100.'
+        : 'Índice base 100: no hay series con datos en este período.';
+    } else if (state.oil !== 'none' && seriesOil(state.oil)) {
+      msg += 'Eje derecho en US$ por galón, con escala independiente: no compares alturas entre combustibles y petróleo.';
+    }
+    return msg;
+  }
+  function renderLiq() {
+    var o = optsLiq(), av = el('#aviso-vista');
+    av.textContent = notaVista(null);
+    o.onInfo = function (i) { av.textContent = notaVista(i.base); };
+    if (OG) o.altura = 470;
+    drawChart('chart-liq', o);
+  }
+  function renderGlp() {
+    var o = optsGlp();
+    drawChart('chart-glp', o);
+    if (!o.series.length) { var lg = el('#leyenda-glp'); if (lg) lg.innerHTML = ''; }
   }
   function render() { if (!D) return; if (state.tab === 'liq') renderLiq(); else renderGlp(); }
 
@@ -787,7 +799,6 @@
       return p.day + '/' + p.month + '/' + p.year + ' ' + p.hour + ':' + p.minute;
     } catch (e) { return ''; }
   }
-  function signo(n) { return n > 0 ? '+' : (n < 0 ? '−' : ''); }
   // DD/MM; con año de 2 dígitos (DD/MM/AA) si es de otro año que el actual
   function fechaCorta(d) {
     var p = String(d).split('-');
@@ -819,23 +830,24 @@
     });
     box.innerHTML = filas.map(function (f) {
       var its = f.items, main = its[0];
-      var precios = its.map(function (x) {
+      // precio principal en una línea; en GLP el precio por litro va debajo, como texto secundario
+      var pr = function (x) {
         return x.precio == null ? 'sin datos' : 'G. ' + miles(x.precio) + '<small> /' + esc(UNI[x.unidad] || x.unidad) + '</small>';
-      }).join('<span class="f-sep"> · </span>');
-      // flecha y monto solo si el cambio existe y cambio.flecha es true (en GLP, en todas las filas con precio)
+      };
+      var precios = pr(main) + its.slice(1).map(function (x) { return '<span class="f-alt">' + pr(x) + '</span>'; }).join('');
+      // monto solo si cambio.flecha es true en todas las unidades (data.json ya excluye por confirmar, anterior viejo y huecos)
       var conFlecha = its.every(function (x) { return x.cambio && x.cambio.flecha; });
-      var cam = '';
+      var cam = '<span class="f-cambio">';
       if (conFlecha) {
         var c = main.cambio, sube = c.abs > 0;
-        cam = '<span class="f-cambio ' + (sube ? 'sube' : 'baja') + '"><span aria-hidden="true">' + (sube ? '▲' : '▼') + ' </span>'
-          + '<span class="sr-only">' + (sube ? 'subió ' : 'bajó ') + '</span>' + signo(c.abs) + miles(Math.abs(c.abs)) + '</span>';
-      } else {
-        cam = '<span class="f-cambio"></span>';
+        cam += '<span class="pill ' + (sube ? 'sube' : 'baja') + '"><span aria-hidden="true">' + (sube ? '▲' : '▼') + ' </span>'
+          + '<span class="sr-only">' + (sube ? 'subió ' : 'bajó ') + '</span>' + miles(Math.abs(c.abs)) + '</span>';
       }
+      cam += '</span>';
       var conf = its.every(function (x) { return x.fecha_vigencia_confirmada && x.vigente_desde; });
       var meta = '';
       if (conf) meta += (main.vigente_desde > HOY ? 'rige desde ' : 'desde ') + fechaCorta(main.vigente_desde);
-      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? ' ' : '') + '<span class="f-pc">⚠ por confirmar</span>';
+      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? ' · ' : '') + '<span class="f-pc">por confirmar</span>';
       return '<button type="button" class="fila" data-id="' + esc(f.id) + '" style="--tc:' + f.color + '">'
         + '<span class="f-dot" aria-hidden="true"></span>'
         + '<span class="f-nom">' + esc(f.nombre) + '</span>'
@@ -868,7 +880,7 @@
   function verificacion() {
     var v = el('#verif'); if (!v) return;
     var cap = D.ultima_captura ? fmtAsu(D.ultima_captura) : '';
-    v.innerHTML = cap ? '<span class="vd">\u00b7 </span>último cambio capturado ' + esc(cap) : '';
+    v.textContent = cap ? 'Último cambio capturado ' + cap : '';
     try {
       var ctl = window.AbortController ? new AbortController() : null;
       var to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
@@ -879,7 +891,7 @@
           clearTimeout(to);
           var t = j && j.workflow_runs && j.workflow_runs[0] && j.workflow_runs[0].updated_at;
           var f = t ? fmtAsu(t) : '';
-          if (f) v.innerHTML = '<span class="vd">\u00b7 </span>verificado ' + esc(f);
+          if (f) v.textContent = 'Verificado ' + f;
         })
         .catch(function () { /* queda el texto de respaldo */ });
     } catch (e) { /* queda el texto de respaldo */ }
@@ -1011,7 +1023,8 @@
     if (u.wti) o.push('WTI al ' + fmtIso(u.wti));
     if (u.ulsd) o.push('ULSD al ' + fmtIso(u.ulsd));
     el('#frescura').textContent = o.length ? 'Petróleo (EIA): ' + o.join(', ') + '.' : '';
-    if (D.generado) el('#generado').textContent = 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
+    var pe = u.petropar ? 'Precios Petropar al ' + fmtIso(u.petropar) + '. ' : '';
+    if (D.generado) el('#generado').textContent = pe + 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
     var hu = (D.productos || []).filter(function (p) { return (p.huecos || []).length; }).map(function (p) {
       return p.nombre + ': ' + p.huecos.map(function (h) {
         return h.hasta ? fmtIso(h.desde) + '\u2013' + fmtIso(h.hasta) : 'desde ' + fmtIso(h.desde) + ' (sin retomar)';
@@ -1020,11 +1033,137 @@
     el('#nota-huecos').textContent = hu.length ? 'Hoy: ' + hu.join(' ') : 'Hoy no hay huecos conocidos.';
   }
 
+  /* ---------- descargas ---------- */
+  function bajar(nombre, blob) {
+    var a = document.createElement('a'), u = URL.createObjectURL(blob);
+    a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
+  }
+  function csvCelda(v) {
+    var t = v == null ? '' : String(v);
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function csv(cab, filas) {
+    // BOM para que Excel abra bien los acentos
+    return new Blob(['﻿' + [cab].concat(filas).map(function (f) { return f.map(csvCelda).join(','); }).join('\r\n') + '\r\n'],
+      { type: 'text/csv;charset=utf-8' });
+  }
+  function csvVigentes() {
+    var nom = {}; (D.productos || []).forEach(function (p) { nom[p.id] = p.nombre; });
+    return csv(['product_id', 'producto', 'unidad', 'precio_gs', 'vigente_desde', 'fecha_vigencia_confirmada', 'estado', 'por_confirmar',
+      'precio_anterior_gs', 'fecha_anterior', 'cambio_gs'],
+      (D.tarjetas || []).filter(function (t) { return t.precio != null; }).map(function (t) {
+        var c = t.cambio || {};
+        return [t.id, nom[t.id] || t.id, t.unidad, t.precio, t.vigente_desde, t.fecha_vigencia_confirmada ? 'si' : 'no',
+          t.estado, t.por_confirmar ? 'si' : 'no', c.precio_anterior, c.fecha_anterior, c.abs];
+      }));
+  }
+  function csvHistorico() {
+    return csv(['fecha_vigencia', 'product_id', 'producto', 'unidad', 'precio_gs', 'tipo_precio', 'estado', 'fecha_estado', 'fuente', 'fuente_url', 'nota'],
+      filasTabla().slice().sort(function (a, b) { return a.r.fecha < b.r.fecha ? -1 : (a.r.fecha > b.r.fecha ? 1 : a.o - b.o); }).map(function (f) {
+        var r = f.r;
+        return [r.fecha, f.id, f.nombre, f.unidad, r.precio, r.tipo_precio, r.estado, r.fecha_estado, r.fuente, (r.urls || []).join(' | '), r.nota];
+      }));
+  }
+  function wireDescargas() {
+    var btn = el('#btn-descarga'), lista = el('#menu-descarga-lista');
+    function abrir(si) {
+      lista.hidden = !si; btn.setAttribute('aria-expanded', si ? 'true' : 'false');
+      if (si) { var b0 = lista.querySelector('button'); if (b0) b0.focus(); }
+    }
+    btn.addEventListener('click', function () { abrir(lista.hidden); });
+    lista.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-csv]') : null;
+      if (!b) return;
+      var dia = (D.ultimo_dato && D.ultimo_dato.petropar) || iso(new Date());
+      if (b.getAttribute('data-csv') === 'vigentes') bajar('petropar_precios_vigentes_' + dia + '.csv', csvVigentes());
+      else bajar('petropar_precios_historico_' + dia + '.csv', csvHistorico());
+      abrir(false); btn.focus();
+    });
+    document.addEventListener('click', function (ev) {
+      if (!lista.hidden && !el('#menu-descarga').contains(ev.target)) abrir(false);
+    });
+    el('#menu-descarga').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !lista.hidden) { abrir(false); btn.focus(); }
+    });
+    el('#btn-png').addEventListener('click', exportarPng);
+  }
+
+  /* Exportar el gráfico visible a PNG: SIEMPRE en tema claro (contenedor .tema-claro fuera de pantalla, a 1200 px de ancho),
+     con título, fuente y fecha dibujados en el canvas. Los estilos calculados se copian al SVG para que se vea igual fuera de la página. */
+  var PROPS_SVG = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'stroke-linejoin',
+    'stroke-linecap', 'opacity', 'font-size', 'font-weight', 'font-style', 'paint-order', 'text-anchor', 'dominant-baseline', 'display', 'visibility'];
+  function estilosEnLinea(svg) {
+    [svg].concat(Array.prototype.slice.call(svg.querySelectorAll('*'))).forEach(function (n) {
+      var cs = getComputedStyle(n), st = '';
+      PROPS_SVG.forEach(function (k) { var v = cs.getPropertyValue(k); if (v) st += k + ':' + v + ';'; });
+      n.setAttribute('style', st + 'font-family:Inter,Helvetica,Arial,sans-serif;');
+      n.removeAttribute('class');
+    });
+  }
+  function exportarPng() {
+    var btn = el('#btn-png'), W = 1200, PAD = 40;
+    btn.disabled = true;
+    var caja = document.createElement('div');
+    caja.className = 'tema-claro';
+    caja.setAttribute('aria-hidden', 'true');
+    caja.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + (W - 2 * (PAD - 8)) + 'px;background:#fcfcfb';
+    caja.innerHTML = '<div class="chart" id="chart-export"></div>';
+    document.body.appendChild(caja);
+    var o = state.tab === 'glp' ? optsGlp() : optsLiq();
+    o.leyendaId = null; o.altura = 560;
+    try { drawChart('chart-export', o); } catch (e) { caja.remove(); btn.disabled = false; throw e; }
+    delete charts['chart-export'];
+    var svg = caja.querySelector('svg');
+    if (!svg) { caja.remove(); btn.disabled = false; return; }
+    estilosEnLinea(svg);
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    var txt = new XMLSerializer().serializeToString(svg);
+    var sw = +svg.getAttribute('width'), sh = +svg.getAttribute('height');
+    caja.remove();
+
+    var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar' : 'Precios de combustibles de Petropar y precio del petróleo';
+    var subt = state.tab === 'glp' ? 'Guaraníes por kg y por litro, nominal'
+      : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100' : '; petróleo en US$ por galón (eje derecho, escala independiente)') : '');
+    var u = D.ultimo_dato || {};
+    var fuente = 'Fuente: Petropar (respuesta AIP N° 90150, prensa y página oficial)' + (o.oil ? '; U.S. Energy Information Administration (EIA)' : '') + '.';
+    var fecha = 'Datos al ' + fmtIso(u.petropar || iso(new Date())) + (o.oil && u.wti ? ' (petróleo al ' + fmtIso(u.wti) + ')' : '') + ' · combuspy-tracker.vercel.app';
+    var HC = 96, HP = 64, H = HC + sh + HP, k = 2;
+    var cv = document.createElement('canvas');
+    cv.width = W * k; cv.height = H * k;
+    var cx = cv.getContext('2d');
+    cx.scale(k, k);
+    cx.fillStyle = '#fcfcfb'; cx.fillRect(0, 0, W, H);
+    var img = new Image();
+    img.onload = function () {
+      var ff = 'Inter, Helvetica, Arial, sans-serif';
+      cx.fillStyle = '#0b0b0b'; cx.font = '800 26px ' + ff; cx.fillText(titulo, PAD - 8, 44);
+      cx.fillStyle = '#52514e'; cx.font = '400 15px ' + ff; cx.fillText(subt, PAD - 8, 72);
+      cx.drawImage(img, PAD - 8, HC, sw, sh);
+      cx.fillStyle = '#dcdad4'; cx.fillRect(PAD - 8, HC + sh + 12, W - 2 * (PAD - 8), 1);
+      cx.fillStyle = '#7a7974'; cx.font = '400 13px ' + ff;
+      cx.fillText(fuente, PAD - 8, HC + sh + 34); cx.fillText(fecha, PAD - 8, HC + sh + 52);
+      cv.toBlob(function (b) {
+        btn.disabled = false;
+        if (b) bajar('petropar_' + (state.tab === 'glp' ? 'glp' : 'combustibles') + '_' + (u.petropar || iso(new Date())) + '.png', b);
+      }, 'image/png');
+    };
+    img.onerror = function () { btn.disabled = false; };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt);
+  }
+
   /* ---------- arranque ---------- */
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls();
+    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls(); wireDescargas();
+    if (OG) {
+      var u = D.ultimo_dato || {}, pf = document.createElement('p');
+      pf.className = 'og-fuente';
+      pf.textContent = 'Gs por litro (nominal) y petróleo WTI en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
+        + fmtIso(u.petropar || '') + '. combuspy-tracker.vercel.app';
+      el('#chart-liq').after(pf);
+    }
     var dt = el('#det-tabla');   // la tabla completa se arma solo al abrir (o con ?tabla=1, útil para capturas)
     dt.addEventListener('toggle', function () { if (dt.open) armarTabla(); });
     try { if (new URLSearchParams(location.search).get('tabla') === '1') { dt.open = true; armarTabla(); } } catch (e) { /* sin parámetros */ }

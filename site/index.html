@@ -9,8 +9,23 @@
    ?tema=oscuro|claro fuerza el tema en esa visita; si no, se usa lo guardado en localStorage (try/catch: si falla, claro). */
 (function(){var t="light";try{var q=new URLSearchParams(location.search).get("tema");if(q==="oscuro"||q==="claro"){t=q==="oscuro"?"dark":"light";}else if(localStorage.getItem("tema")==="oscuro"){t="dark";}}catch(e){}document.documentElement.setAttribute("data-theme",t);var mc=document.getElementById("meta-cs");if(mc)mc.setAttribute("content",t);})();
 </script>
-<title>Precios de combustibles de Petropar vs. petróleo</title>
-<meta name="description" content="Serie histórica de precios de surtidor de Petropar (desde 2009) comparada con el petróleo internacional y los períodos presidenciales.">
+<title>Precios de combustibles de Petropar vs. petróleo · CombusPy</title>
+<meta name="description" content="Precios de surtidor de Petropar hoy y su serie histórica desde 2009, comparada con el petróleo internacional (EIA) y los períodos presidenciales.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CombusPy">
+<meta property="og:title" content="Precios de combustibles de Petropar vs. petróleo">
+<meta property="og:description" content="Precios de surtidor de Petropar hoy y su serie histórica desde 2009, comparada con el petróleo internacional.">
+<meta property="og:url" content="https://combuspy-tracker.vercel.app/">
+<meta property="og:image" content="https://combuspy-tracker.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Gráfico de los precios de Petropar desde 2009 comparados con el petróleo WTI">
+<meta property="og:locale" content="es_PY">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,8 +33,8 @@
   <div class="cab-fila">
     <h1>Precios de combustibles de Petropar y precio del petróleo</h1>
     <button type="button" id="btn-tema" class="btn-tema" aria-label="Tema oscuro" aria-pressed="false" title="Cambiar entre tema claro y oscuro">
-      <svg class="ic-sol" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>
-      <svg class="ic-luna" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
+      <svg class="ic-sol" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>
+      <svg class="ic-luna" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
     </button>
   </div>
   <p class="aviso" id="error-datos" role="alert" hidden></p>
@@ -27,17 +42,39 @@
 
 <main>
   <section id="hoy" class="seccion" aria-labelledby="h-hoy">
-    <h2 id="h-hoy">Precios Petropar hoy <span class="hoy-verif" id="verif" title="Hora de Asunción"></span></h2>
-    <p class="hoy-nota">Planta Villa Elisa; puede variar a más de 50 km. <a href="#historico">Ver evolución histórica &darr;</a></p>
+    <div class="sec-cab">
+      <div>
+        <h2 id="h-hoy">Precios Petropar hoy</h2>
+        <p class="hoy-nota"><span id="verif" title="Hora de Asunción"></span>Planta Villa Elisa; puede variar a más de 50 km.</p>
+      </div>
+      <div class="menu" id="menu-descarga">
+        <button type="button" class="btn-linea" id="btn-descarga" aria-haspopup="true" aria-expanded="false" aria-controls="menu-descarga-lista">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Descargar
+        </button>
+        <div class="menu-lista" id="menu-descarga-lista" role="menu" hidden>
+          <button type="button" role="menuitem" data-csv="vigentes">CSV de precios vigentes</button>
+          <button type="button" role="menuitem" data-csv="historico">CSV del histórico</button>
+        </div>
+      </div>
+    </div>
     <div class="lista-hoy" id="lista-hoy"><p class="hoy-nd">Cargando datos…</p></div>
+    <p class="hoy-pie"><a href="#historico">Ver evolución histórica</a></p>
   </section>
 
   <section id="historico" class="seccion" aria-labelledby="h-hist">
-  <h2 id="h-hist" tabindex="-1">Histórico</h2>
-  <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales.</p>
-  <p class="frescura" id="frescura"></p>
+  <div class="sec-cab">
+    <div>
+      <h2 id="h-hist" tabindex="-1">Histórico</h2>
+      <p class="sub">Precio de surtidor de Petropar (Gs por litro, nominal) desde 2009, comparado con el crudo WTI o el diésel ULSD internacional, sobre los períodos presidenciales. <span class="frescura" id="frescura"></span></p>
+    </div>
+    <button type="button" class="btn-linea" id="btn-png" title="Imagen PNG en tema claro, con título, fuente y fecha">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Descargar imagen
+    </button>
+  </div>
   <div class="tabs" role="tablist" aria-label="Tipo de combustible">
-    <button role="tab" id="tab-liq" aria-selected="true" aria-controls="panel-liq" class="tab on">Combustibles líquidos</button>
+    <button role="tab" id="tab-liq" aria-selected="true" aria-controls="panel-liq" class="tab on">Combustibles</button>
     <button role="tab" id="tab-glp" aria-selected="false" aria-controls="panel-glp" class="tab">GLP (Ñande Gas)</button>
   </div>
 
@@ -45,33 +82,39 @@
     <div class="controles">
       <fieldset class="seg" id="ctl-vista">
         <legend>Vista</legend>
-        <label><input type="radio" name="vista" value="dual" checked><span>Doble eje</span></label>
-        <label><input type="radio" name="vista" value="index"><span>Índice base 100</span></label>
+        <div class="seg-g">
+          <label><input type="radio" name="vista" value="dual" checked><span>Doble eje</span></label>
+          <label><input type="radio" name="vista" value="index"><span>Índice base 100</span></label>
+        </div>
       </fieldset>
       <fieldset class="seg" id="ctl-oil">
         <legend>Serie internacional</legend>
-        <label><input type="radio" name="oil" value="wti" checked><span>WTI</span></label>
-        <label><input type="radio" name="oil" value="ulsd"><span>ULSD</span></label>
-        <label><input type="radio" name="oil" value="none"><span>Ocultar</span></label>
+        <div class="seg-g">
+          <label><input type="radio" name="oil" value="wti" checked><span>WTI</span></label>
+          <label><input type="radio" name="oil" value="ulsd"><span>ULSD</span></label>
+          <label><input type="radio" name="oil" value="none"><span>Ocultar</span></label>
+        </div>
       </fieldset>
       <fieldset class="seg" id="ctl-rango">
         <legend>Período</legend>
-        <label><input type="radio" name="rango" value="all" checked><span>Todo</span></label>
-        <label><input type="radio" name="rango" value="10"><span>10 años</span></label>
-        <label><input type="radio" name="rango" value="5"><span>5 años</span></label>
-        <label><input type="radio" name="rango" value="2"><span>2 años</span></label>
+        <div class="seg-g">
+          <label><input type="radio" name="rango" value="all" checked><span>Todo</span></label>
+          <label><input type="radio" name="rango" value="10"><span>10 años</span></label>
+          <label><input type="radio" name="rango" value="5"><span>5 años</span></label>
+          <label><input type="radio" name="rango" value="2"><span>2 años</span></label>
+        </div>
       </fieldset>
     </div>
     <fieldset class="chips" id="ctl-prod"><legend>Productos</legend></fieldset>
 
-    <p class="aviso" id="aviso-vista" role="note"></p>
     <div class="chart" id="chart-liq"></div>
+    <p class="nota-eje" id="aviso-vista" role="note"></p>
     <div class="leyenda" id="leyenda-liq"></div>
   </section>
 
   <section id="panel-glp" role="tabpanel" aria-labelledby="tab-glp" hidden>
-    <p class="aviso">El GLP (gas de cocina) es otro producto, con otra unidad (kg y litro) y otra escala: por eso va en un gráfico aparte, en Gs por kg y por litro, sin petróleo.</p>
     <div class="chart" id="chart-glp"></div>
+    <p class="nota-eje">El GLP (gas de cocina) va aparte: otra unidad (kg y litro) y otra escala, sin petróleo.</p>
     <div class="leyenda" id="leyenda-glp"></div>
   </section>
   </section>
@@ -87,13 +130,14 @@
     </details>
   </section>
 
-  <section class="bloque nota" id="nota">
-    <h2>Nota metodológica</h2>
+  <section class="seccion nota" id="metodologia" aria-labelledby="h-met">
+    <h2 id="h-met">Metodología</h2>
     <ul>
       <li><strong>Nominal, no real.</strong> Los precios son nominales: no están ajustados por inflación ni por tipo de cambio. Una suba en guaraníes no implica necesariamente una suba en términos reales. (Las vistas en guaraníes constantes y en US$ por litro quedan para una próxima versión.)</li>
       <li><strong>Escalas independientes.</strong> En la vista de doble eje, el eje izquierdo (Gs por litro) y el derecho (US$ por galón) tienen escalas independientes. La altura relativa de una línea de combustible y la del petróleo no es comparable: solo importa cuándo suben y bajan.</li>
       <li><strong>Índice base 100.</strong> Pone todas las series visibles en la misma escala relativa. La base es la primera fecha del período elegido en la que ya existen todas las series visibles; en esa fecha cada serie vale 100 (se marca en el gráfico). Cambiar el período, los productos o la serie internacional cambia la base.</li>
       <li><strong>Petróleo.</strong> Línea punteada: promedio mensual de la serie diaria de la EIA (WTI Cushing en US$ por barril dividido 42, o diésel ULSD de la Costa del Golfo, en US$ por galón). Al pasar el cursor se muestra el valor diario del día más cercano. No es un precio de compra de Petropar.</li>
+      <li><strong>Último cambio.</strong> En "Precios hoy", el monto (▲ sube, ▼ baja) es la diferencia con el precio anterior con fuente. No se muestra si el precio actual está por confirmar, si el anterior tiene más de 6 meses o si entre los dos hay un período sin datos.</li>
       <li><strong>Huecos conocidos.</strong> Cuando un producto deja de publicarse, la línea se corta donde termina la cobertura de la fuente o donde no hay fila con fuente (para Ecoflex 85, el documento oficial llega al 31/12/2024, aunque su último cambio registrado fue el 08/11/2024; las filas de GLP que quedan aisladas se ven como un punto) y no se extrapola ni se arrastra el último precio. El hueco se dibuja sin línea, con un rombo en el último punto conocido y otro en el primero posterior (relleno si es firme, hueco si no); al pasar el cursor por el hueco el cuadro emergente indica entre qué fechas no hay datos. <span id="nota-huecos"></span></li>
       <li><strong>Fuentes.</strong> Hasta 2024: respuesta oficial de Petropar a la solicitud de información pública N° 90150 (17/03/2025). Desde 2025: prensa y planilla propia, y luego la página oficial de Petropar. Cada precio indica su fuente en el cuadro emergente.</li>
       <li><strong>Cambio de tipo de precio.</strong> De 2009 a 2014 el dato es el "precio máximo y/o sugerido de venta al público"; desde 2015 es el "precio de venta al público". No son exactamente lo mismo, aunque en 2015 las dos páginas del documento oficial coinciden. En el gráfico, ese primer tramo va con fondo de trama fina y el rótulo "Precio máximo/sugerido" (el rango sale de los datos: desde el primer precio de ese tipo hasta la primera fila de venta al público), y el cuadro emergente aclara de qué tipo es cada precio.</li>
@@ -105,7 +149,27 @@
 </main>
 
 <footer class="pie">
-  <p>Datos: Petropar, EIA. Código y datos en el repositorio del proyecto. <span id="generado"></span></p>
+  <div class="pie-grid">
+    <div>
+      <h2>Fuentes</h2>
+      <p>Petropar: <a href="https://informacionpublica.paraguay.gov.py/public/2025/1742301348_1_RespuestaSolicitudN90150.pdf" rel="noopener noreferrer">respuesta a la solicitud de información pública N° 90150</a> (2009–2024), prensa y la <a href="https://www.petropar.gov.py/?page_id=4460" rel="noopener noreferrer">página oficial</a> (desde 2025).</p>
+      <p>Petróleo: <a href="https://www.eia.gov/" rel="noopener noreferrer">U.S. Energy Information Administration (EIA)</a>, precios spot diarios WTI Cushing y diésel ULSD de la Costa del Golfo.</p>
+    </div>
+    <div>
+      <h2>Metodología</h2>
+      <p><a href="#metodologia">Cómo se arma la serie</a>: precios nominales, huecos sin datos, puntos no firmes y doble eje.</p>
+      <p><a href="https://github.com/alanhlopez/petropar-tracker" rel="noopener noreferrer">Código y datos en GitHub</a></p>
+    </div>
+    <div>
+      <h2>Autor</h2>
+      <!-- Pendiente: links a X y LinkedIn del autor -->
+      <p>Alan López</p>
+    </div>
+    <div>
+      <h2>Última actualización</h2>
+      <p id="generado">—</p>
+    </div>
+  </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
