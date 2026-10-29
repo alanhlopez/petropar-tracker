@@ -25,7 +25,7 @@ def fixture(nombre: str) -> dict:
 def eia(monkeypatch):
     """Simula la API: responde según la serie pedida y registra los parámetros."""
     pedidos = []
-    respuestas = {"RWTC": fixture("eia_rwtc.json"),
+    respuestas = {"RWTC": fixture("eia_rwtc.json"), "RBRTE": fixture("eia_rbrte.json"),
                   "EER_EPD2DXL0_PF4_RGC_DPG": fixture("eia_ulsd.json")}
 
     def get(url, params, timeout):
@@ -45,6 +45,11 @@ def test_carga_inicial_convierte_y_saltea_nulos(eia):
         ("2026-10-19", "usd_bbl"): "99.12", ("2026-10-19", "usd_gal"): f"{99.12 / 42:.4f}",
         ("2026-10-20", "usd_bbl"): "100.38", ("2026-10-20", "usd_gal"): f"{100.38 / 42:.4f}",
     }  # el 2026-10-21 viene sin valor y no se guarda
+    brent = {(f["fecha"], f["unidad"]): f["valor_usd"] for f in nuevas if f["serie"] == "brent"}
+    assert brent == {
+        ("2026-10-19", "usd_bbl"): "95.40", ("2026-10-19", "usd_gal"): f"{95.40 / 42:.4f}",
+        ("2026-10-20", "usd_bbl"): "96.10", ("2026-10-20", "usd_gal"): f"{96.10 / 42:.4f}",
+    }
     ulsd = [(f["fecha"], f["valor_usd"], f["unidad"]) for f in nuevas if f["serie"] == "ulsd"]
     assert ulsd == [("2026-10-19", "3.1050", "usd_gal"), ("2026-10-20", "3.2120", "usd_gal")]
 
@@ -58,14 +63,14 @@ def test_incremental_desde_ultima_fecha_sin_duplicar(eia):
     ]
     nuevas = fo.actualizar("clave", existentes)
     assert {p["facets[series][]"]: p["start"] for p in pedidos} == {
-        "RWTC": "2026-10-19", "EER_EPD2DXL0_PF4_RGC_DPG": "2026-10-20"}
+        "RWTC": "2026-10-19", "RBRTE": "2009-01-01", "EER_EPD2DXL0_PF4_RGC_DPG": "2026-10-20"}  # Brent: carga inicial
     claves = [(f["fecha"], f["serie"], f["unidad"]) for f in nuevas]
     assert ("2026-10-19", "wti", "usd_bbl") not in claves
     assert ("2026-10-20", "ulsd", "usd_gal") not in claves
-    assert len(claves) == len(set(claves)) == 3  # wti 10-20 (bbl, gal) + ulsd 10-19
+    assert len(claves) == len(set(claves)) == 7  # wti 10-20 (bbl, gal) + brent 10-19 y 10-20 (bbl, gal) + ulsd 10-19
 
 
-@pytest.mark.parametrize("serie,unidad", [("RWTC", "$/GAL"), ("EER_EPD2DXL0_PF4_RGC_DPG", "$/BBL")])
+@pytest.mark.parametrize("serie,unidad", [("RWTC", "$/GAL"), ("RBRTE", "$/GAL"), ("EER_EPD2DXL0_PF4_RGC_DPG", "$/BBL")])
 def test_unidad_inesperada_falla(eia, serie, unidad):
     _, respuestas = eia
     for f in respuestas[serie]["response"]["data"]:

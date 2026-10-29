@@ -1,7 +1,7 @@
 # Petropar tracker
 
 Serie histórica de los precios de surtidor de Petropar (desde 2009-01-02) comparada con el
-petróleo WTI y el diésel ULSD, sombreada por período presidencial. Se actualiza sola: un
+petróleo Brent y el diésel ULSD, sombreada por período presidencial. Se actualiza sola: un
 scraper revisa la página de Petropar cada 6 h y, si hay cambio, abre un Pull Request que una
 persona aprueba antes de publicar.
 
@@ -14,7 +14,7 @@ La especificación completa (fuentes, modelo de datos, reglas) está en [SPEC.md
 | `data/raw/` | Fuentes originales congeladas (solo lectura; los tests verifican sus hashes) |
 | `data/` | Histórico vigente (`precios_petropar.csv`), productos, presidentes, eventos, petróleo |
 | `data/capturas/` | HTML de Petropar guardado en cada cambio de precio (auditoría) |
-| `etl/` | Scraper, descarga de la EIA, armado de `site/data.json`, avisos por issues |
+| `etl/` | Scraper, descarga de la EIA, armado de `site/data.json`, imagen para compartir (`og_image.py`), avisos por issues |
 | `site/` | Página estática (D3) que lee `site/data.json` |
 | `tests/` | pytest, sin red (fixtures HTML reales y respuestas simuladas de la EIA) |
 | `.github/workflows/` | Automatización (ver abajo) |

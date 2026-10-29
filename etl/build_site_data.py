@@ -20,7 +20,8 @@ from zoneinfo import ZoneInfo
 from etl.io_csv import DATA, RAIZ, leer_csv
 
 ASUNCION = ZoneInfo("America/Asuncion")
-# sin flecha de cambio si el precio anterior con fuente es más viejo que esto (o hay un hueco)
+# sin flecha de cambio si el precio anterior con fuente tiene más de esto respecto de hoy
+# (o hay un hueco, o el precio actual está por confirmar)
 DIAS_MAX_FLECHA = 183
 
 SALIDA = RAIZ / "site" / "data.json"
@@ -128,11 +129,12 @@ def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: dat
         cambio = None
         if anterior:
             tras_hueco = cruza_hueco(hs, anterior["fecha"], filas[i]["fecha"])
-            antiguedad = (date.fromisoformat(filas[i]["fecha"]) - date.fromisoformat(anterior["fecha"])).days
+            antiguedad = (hoy - date.fromisoformat(anterior["fecha"])).days
             cambio = {"desde": filas[i]["fecha"], "precio_anterior": anterior["precio"],
                       "fecha_anterior": anterior["fecha"], "tras_hueco": tras_hueco,
-                      # la flecha afirma "cambió de X a Y": solo si X es reciente y no hay hueco entre ambos
-                      "flecha": not tras_hueco and antiguedad <= DIAS_MAX_FLECHA,
+                      # la flecha afirma "cambió de X a Y": solo si Y es firme, X tiene menos de 6 meses
+                      # y no hay hueco entre ambos
+                      "flecha": actual["firme"] and not tras_hueco and antiguedad <= DIAS_MAX_FLECHA,
                       **variacion(actual["precio"], anterior["precio"])}
         dia = hace_un_anio(hoy).isoformat()
         previo = precio_vigente_en(filas, dia, hs)
@@ -171,7 +173,8 @@ def precios_json(precios: list[dict], ids: set[str]) -> dict[str, list[dict]]:
 
 def petroleo_json(petroleo: list[dict]) -> dict[str, dict]:
     salida = {}
-    for serie in ("wti", "ulsd"):
+    # el sitio muestra Brent y ULSD; WTI queda en petroleo.csv pero no se publica
+    for serie in ("brent", "ulsd"):
         diario = sorted((f["fecha"], float(f["valor_usd"])) for f in petroleo
                         if f["serie"] == serie and f["unidad"] == "usd_gal")
         por_mes: dict[str, list[float]] = defaultdict(list)
@@ -237,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     SALIDA.write_text(json.dumps(datos, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     total = sum(len(s) for s in datos["precios"].values())
     print(f"{SALIDA.relative_to(RAIZ)}: {total} precios, "
-          f"{len(datos['petroleo']['wti']['diario'])} días WTI, {len(datos['eventos'])} eventos")
+          f"{len(datos['petroleo']['brent']['diario'])} días Brent, {len(datos['eventos'])} eventos")
     return 0
 
 

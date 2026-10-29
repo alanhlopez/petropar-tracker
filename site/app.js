@@ -13,7 +13,9 @@
     glp_kg: 'Gas kg', glp_litro: 'Gas litro'
   };
   var PRES_CORTO = { 'Fernando Lugo': 'Lugo', 'Federico Franco': 'Franco', 'Horacio Cartes': 'Cartes', 'Mario Abdo Benítez': 'Abdo', 'Santiago Peña': 'Peña' };
-  var OIL_NOMBRE = { wti: 'WTI', ulsd: 'Diésel ULSD' };
+  // series internacionales que muestra el sitio (WTI se guarda en petroleo.csv pero no se publica)
+  var OIL_NOMBRE = { brent: 'Brent', ulsd: 'Diésel ULSD' };
+  var OIL_FUENTE = { brent: 'Brent (Europa, FOB)', ulsd: 'diésel ULSD (Costa del Golfo, EE.UU.)' };
   var TIPO_TXT = {
     max_o_sugerido_venta_publico: 'Precio máximo y/o sugerido de venta al público (referencia, no necesariamente el precio efectivo de surtidor)',
     venta_publico: 'Venta al público'
@@ -22,10 +24,14 @@
   var FECHA_ESTADO_TXT = { confirmada: 'confirmada', a_confirmar: 'a confirmar' };
 
   var parse = d3.utcParse('%Y-%m-%d');
-  var state = { vista: 'dual', oil: 'wti', rango: 'all', tab: 'liq', sel: null };
+  // ?og=1: modo imagen para compartir (1200×630, solo título y gráfico); lo captura etl/og_image.py en el build
+  var OG = false;
+  try { OG = new URLSearchParams(location.search).get('og') === '1'; } catch (e) { /* sin parámetros */ }
+  if (OG) document.documentElement.classList.add('modo-og');
+  var state = { vista: 'dual', oil: 'brent', rango: 'all', tab: 'liq', sel: null };
   var D = null;          // datos crudos
   var PRODS = {};        // id -> {meta, segs}
-  var OIL = {};          // wti|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
+  var OIL = {};          // brent|ulsd -> {mensual:[{d,v}], diario:[{d,iso,v}]}
   var XMIN_ALL, XMAX;
   var TRAMO = null;      // {a, b}: tramo con tipo_precio = max_o_sugerido_venta_publico (derivado de los datos)
 
@@ -33,8 +39,7 @@
      El tema se fija con data-theme en <html> (script inline en index.html, antes del primer pintado).
      Claro por defecto; no sigue prefers-color-scheme. Se recuerda en localStorage (siempre en try/catch).
      ?tema=oscuro | ?tema=claro fuerza el tema solo para esa visita (útil para capturas).
-     IMPORTANTE: si algún día se agrega exportar/descargar imagen del gráfico, la exportación debe
-     forzar el tema claro (fondo #fcfcfb, tinta oscura), sin importar el tema activo en pantalla. */
+     La exportación a PNG (exportarPng) siempre sale en tema claro, sin importar el tema activo en pantalla. */
   function temaActual() { return document.documentElement.getAttribute('data-theme') === 'dark' ? 'oscuro' : 'claro'; }
   function metaCS() {
     var mt = document.getElementById('meta-cs');
@@ -135,7 +140,7 @@
       p.segs.sort(function (u, v) { return u.pts[0].d - v.pts[0].d; });
     });
 
-    ['wti', 'ulsd'].forEach(function (k) {
+    ['brent', 'ulsd'].forEach(function (k) {
       var o = (D.petroleo || {})[k];
       if (!o) return;
       OIL[k] = {
@@ -155,7 +160,7 @@
     var o = OIL[k];
     if (!o || !o.mensual.length) return null;
     var last = o.mensual[o.mensual.length - 1].d;
-    return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'wti' ? 'WTI' : 'ULSD', color: 'var(--oil)',
+    return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'brent' ? 'Brent' : 'ULSD', color: 'var(--oil)',
       segs: [{ pts: o.mensual, end: last }], gaps: [] };
   }
   function gapAt(s, t) {
@@ -192,7 +197,7 @@
   /* ---------- escalas ---------- */
   function niceOilStep(max, n) {
     var need = max / n, base = Math.pow(10, Math.floor(Math.log10(need)));
-    var mult = [1, 2, 2.5, 5, 10];
+    var mult = [1, 2, 2.5, 3, 4, 5, 6, 8, 10];   // pasos intermedios: el eje no queda con el doble de lo necesario
     for (var i = 0; i < mult.length; i++) if (base * mult[i] >= need) return base * mult[i];
     return base * 10;
   }
@@ -396,7 +401,7 @@
           .call(function (a) { a.select('.domain').remove(); }).selectAll('text').attr('font-size', fs);
       }
       g.append('text').attr('x', iw + axisR).attr('text-anchor', 'end').attr('y', -9).attr('font-size', mobile ? 10 : 11.5)
-        .text(mobile ? 'US$/gal' : 'US$ por galón (' + o.oil.short + ')');
+        .text(mobile ? 'US$/gal (' + o.oil.short + ')' : 'US$ por galón (' + o.oil.short + ')');
     }
 
     // eventos
@@ -485,13 +490,14 @@
     // (Sin <title>: el rect de interacción quedaría encima; el cuadro emergente propio explica el hueco.)
     var gm = g.append('g'), nGapMarks = 0, nNoFirme = 0;
     lista.forEach(function (s) {
-      var marcado = {}, rr = mobile ? 5 : 6;
-      function rombo(d, v, firme) {
+      var marcado = {}, rr = mobile ? 3.5 : 4;
+      // rombo chico y sin relleno (solo contorno) para no competir con las líneas; si es firme o no lo dice el cuadro emergente
+      function rombo(d, v) {
         if (d < xmin || d > xmax) return;
         nGapMarks++;
         var cx = x(d), cy = yOf(s, v);
         gm.append('path').attr('d', 'M' + cx + ',' + (cy - rr) + 'l' + rr + ',' + rr + 'l' + (-rr) + ',' + rr + 'l' + (-rr) + ',' + (-rr) + 'z')
-          .style('fill', firme ? s.color : 'var(--bg)').style('stroke', s.color).attr('stroke-width', 2);
+          .style('fill', 'var(--bg)').style('stroke', s.color).attr('stroke-width', 1.5);
       }
       // hueco: último punto conocido antes (a) y primero después (b); nunca se arrastra el precio
       (s.gaps || []).forEach(function (hg) {
@@ -501,8 +507,8 @@
           if (r.fecha <= hg.aIso) antes = r;
           if (!despues && hg.bIso && r.fecha >= hg.bIso) despues = r;
         });
-        if (antes) { rombo(hg.a, antes.precio, antes.firme !== false); marcado[+hg.a] = true; if (antes.fecha === hg.aIso) marcado[+parse(antes.fecha)] = true; }
-        if (despues) { rombo(parse(despues.fecha), despues.precio, despues.firme !== false); marcado[+parse(despues.fecha)] = true; }
+        if (antes) { rombo(hg.a, antes.precio); marcado[+hg.a] = true; if (antes.fecha === hg.aIso) marcado[+parse(antes.fecha)] = true; }
+        if (despues) { rombo(parse(despues.fecha), despues.precio); marcado[+parse(despues.fecha)] = true; }
       });
       s.segs.forEach(function (sg) {
         sg.pts.forEach(function (p) {
@@ -721,7 +727,7 @@
   function leyendaHtml(f) {
     var h = '';
     if (f.nofirme) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>Punto no firme (precio no verificado o fecha por confirmar)</span>';
-    if (f.hueco) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><path d="M7,1 L13,7 L7,13 L1,7z" fill="currentColor"/></svg>Borde de un hueco sin datos</span>';
+    if (f.hueco) h += '<span class="it"><svg width="14" height="14" aria-hidden="true"><path d="M7,3 L11,7 L7,11 L3,7z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Borde de un hueco sin datos</span>';
     if (f.hito) h += '<span class="it"><svg width="22" height="10" aria-hidden="true"><line x1="1" x2="21" y1="5" y2="5" stroke="currentColor" style="color:var(--hito)" stroke-width="1.5" stroke-dasharray="6 4"/></svg>Hito</span>';
     if (f.banda || f.tri) h += '<span class="it"><svg width="34" height="14" aria-hidden="true"><defs><pattern id="lgp" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" style="color:var(--promo)" stroke-width="2"/></pattern></defs><rect x="0" y="0" width="18" height="12" fill="url(#lgp)" stroke="currentColor" style="color:var(--promo)"/><path d="M26,12 l5,-9 l5,9z" fill="currentColor" style="color:var(--promo)" transform="translate(-4,0)"/></svg>Promoción o baja temporal (' + (f.banda && f.tri ? 'banda con fecha de fin; ▲ si no la tiene' : (f.banda ? 'banda con trama' : '▲ sobre el eje')) + ')</span>';
     if (f.tramo) h += '<span class="it"><svg width="18" height="14" aria-hidden="true"><defs><pattern id="lgm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" style="color:var(--muted)" stroke-width="1"/></pattern></defs><rect width="18" height="12" fill="url(#lgm)" stroke="currentColor" style="color:var(--faint)" stroke-width="0.5"/></svg>Precio máximo/sugerido (trama)</span>';
@@ -733,42 +739,51 @@
   function liquidos() { return (D.productos || []).filter(function (p) { return p.tipo !== 'glp'; }); }
   function glps() { return (D.productos || []).filter(function (p) { return p.tipo === 'glp'; }); }
 
-  function renderLiq() {
+  // Opciones de cada gráfico: las usa la pantalla y también la exportación a PNG
+  function optsLiq() {
     var sel = liquidos().filter(function (p) { return state.sel.has(p.id); })
       .map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
     var oil = state.oil === 'none' ? null : seriesOil(state.oil);
-    var av = el('#aviso-vista');
-    var msgBase = '';
-    if (state.oil !== 'none' && !oil) msgBase = 'No hay datos de ' + OIL_NOMBRE[state.oil] + ' en data.json. ';
-    if (state.vista === 'dual' && oil) {
-      av.textContent = msgBase + 'Doble eje: la escala izquierda (Gs por litro) y la derecha (US$ por galón) son independientes. No compares alturas entre combustibles y petróleo.';
-    } else {
-      av.textContent = msgBase;
-    }
-    drawChart('chart-liq', {
+    return {
       series: sel, oil: oil, view: state.vista, rango: state.rango, leyendaId: 'leyenda-liq',
       vacio: 'Elegí al menos un producto para ver el gráfico.',
-      aria: 'Precios de combustibles de Petropar y petróleo internacional, serie histórica',
-      onInfo: function (i) {
-        if (state.vista === 'index') {
-          av.textContent = msgBase + (i.base
-            ? 'Índice base 100: en ' + fmtD(i.base) + ' (primera fecha del período con todas las series visibles) cada serie vale 100.'
-            : 'Índice base 100: no hay series con datos en este período.');
-        }
-      }
-    });
+      aria: 'Precios de combustibles de Petropar y petróleo internacional, serie histórica'
+    };
   }
-  function renderGlp() {
-    var sel = glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
-    drawChart('chart-glp', {
-      series: sel, oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
+  function optsGlp() {
+    return {
+      series: glps().map(function (p) { return seriesPrice(p.id); }).filter(Boolean),
+      oil: null, view: 'dual', rango: 'all', leyendaId: 'leyenda-glp', altura: undefined,
       xDesdeDatos: true, sinPromos: true,
       vacio: 'Sin datos todavía. El GLP (Ñande Gas) entra con la primera captura del scraper.',
       ejeL: 'Gs por kg / por litro',
       unidadTxt: function (s) { return PRODS[s.id].meta.unidad === 'kg' ? 'por kg' : 'por litro'; },
       aria: 'Precios del GLP Ñande Gas'
-    });
-    if (!sel.length) { var lg = el('#leyenda-glp'); if (lg) lg.innerHTML = ''; }
+    };
+  }
+  // Nota chica bajo el gráfico (debajo del eje derecho): doble eje o base del índice
+  function notaVista(base) {
+    var msg = '';
+    if (state.oil !== 'none' && !seriesOil(state.oil)) msg = 'No hay datos de ' + OIL_NOMBRE[state.oil] + ' en data.json. ';
+    if (state.vista === 'index') {
+      msg += base ? 'Índice base 100: en ' + fmtD(base) + ' (primera fecha del período con todas las series visibles) cada serie vale 100.'
+        : 'Índice base 100: no hay series con datos en este período.';
+    } else if (state.oil !== 'none' && seriesOil(state.oil)) {
+      msg += 'Eje derecho en US$ por galón, con escala independiente: no compares alturas entre combustibles y petróleo.';
+    }
+    return msg;
+  }
+  function renderLiq() {
+    var o = optsLiq(), av = el('#aviso-vista');
+    av.textContent = notaVista(null);
+    o.onInfo = function (i) { av.textContent = notaVista(i.base); };
+    if (OG) o.altura = 520;
+    drawChart('chart-liq', o);
+  }
+  function renderGlp() {
+    var o = optsGlp();
+    drawChart('chart-glp', o);
+    if (!o.series.length) { var lg = el('#leyenda-glp'); if (lg) lg.innerHTML = ''; }
   }
   function render() { if (!D) return; if (state.tab === 'liq') renderLiq(); else renderGlp(); }
 
@@ -787,7 +802,6 @@
       return p.day + '/' + p.month + '/' + p.year + ' ' + p.hour + ':' + p.minute;
     } catch (e) { return ''; }
   }
-  function signo(n) { return n > 0 ? '+' : (n < 0 ? '−' : ''); }
   // DD/MM; con año de 2 dígitos (DD/MM/AA) si es de otro año que el actual
   function fechaCorta(d) {
     var p = String(d).split('-');
@@ -796,8 +810,8 @@
   var UNI = { litro: 'L', kg: 'kg' };
   /* Lista compacta de "Precios hoy": una fila por producto, todo en un solo bloque. Todo viene de data.tarjetas
      (precio, cambio.flecha, vigente_desde, etc.); acá solo se formatea. GLP: una fila con kg y litro.
-     Orden: el de data.tarjetas. En desktop ancho la lista va en 2 columnas que se llenan por columnas (grid por columnas:
-     primero baja la columna izquierda y después la derecha), así el orden de lectura es el de data.tarjetas. */
+     Orden: el de data.tarjetas. Dos bloques .col-hoy (mitad de arriba y de abajo): en desktop van lado a lado, con alturas
+     de fila independientes; en celular uno debajo del otro, así el orden de lectura es el de data.tarjetas. */
   function renderLista() {
     var box = el('#lista-hoy'); if (!box) return;
     HOY = hoyAsuncion();
@@ -817,33 +831,36 @@
         filas.push({ id: t.id, color: cvar(t.id), nombre: nom[t.id] || t.id, items: [t] });
       }
     });
-    box.innerHTML = filas.map(function (f) {
+    var html = filas.map(function (f) {
       var its = f.items, main = its[0];
-      var precios = its.map(function (x) {
+      // precio principal en una línea; en GLP el precio por litro va debajo, como texto secundario
+      var pr = function (x) {
         return x.precio == null ? 'sin datos' : 'G. ' + miles(x.precio) + '<small> /' + esc(UNI[x.unidad] || x.unidad) + '</small>';
-      }).join('<span class="f-sep"> · </span>');
-      // flecha y monto solo si el cambio existe y cambio.flecha es true (en GLP, en todas las filas con precio)
+      };
+      var precios = pr(main) + its.slice(1).map(function (x) { return '<span class="f-alt">' + pr(x) + '</span>'; }).join('');
+      // monto solo si cambio.flecha es true en todas las unidades (data.json ya excluye por confirmar, anterior viejo y huecos)
       var conFlecha = its.every(function (x) { return x.cambio && x.cambio.flecha; });
-      var cam = '';
+      var cam = '<span class="f-cambio">';
       if (conFlecha) {
         var c = main.cambio, sube = c.abs > 0;
-        cam = '<span class="f-cambio ' + (sube ? 'sube' : 'baja') + '"><span aria-hidden="true">' + (sube ? '▲' : '▼') + ' </span>'
-          + '<span class="sr-only">' + (sube ? 'subió ' : 'bajó ') + '</span>' + signo(c.abs) + miles(Math.abs(c.abs)) + '</span>';
-      } else {
-        cam = '<span class="f-cambio"></span>';
+        cam += '<span class="pill ' + (sube ? 'sube' : 'baja') + '"><span aria-hidden="true">' + (sube ? '▲' : '▼') + ' </span>'
+          + '<span class="sr-only">' + (sube ? 'subió ' : 'bajó ') + '</span>' + miles(Math.abs(c.abs)) + '</span>';
       }
+      cam += '</span>';
       var conf = its.every(function (x) { return x.fecha_vigencia_confirmada && x.vigente_desde; });
       var meta = '';
-      if (conf) meta += (main.vigente_desde > HOY ? 'rige desde ' : 'desde ') + fechaCorta(main.vigente_desde);
-      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? ' ' : '') + '<span class="f-pc">⚠ por confirmar</span>';
+      if (conf) meta += (main.vigente_desde > HOY ? 'rige desde\u00a0' : 'desde\u00a0') + fechaCorta(main.vigente_desde);
+      if (its.some(function (x) { return x.por_confirmar; })) meta += (meta ? '<br>' : '') + '<span class="f-pc">por confirmar</span>';
       return '<button type="button" class="fila" data-id="' + esc(f.id) + '" style="--tc:' + f.color + '">'
         + '<span class="f-dot" aria-hidden="true"></span>'
         + '<span class="f-nom">' + esc(f.nombre) + '</span>'
         + '<span class="f-precio">' + precios + '</span>'
         + cam + '<span class="f-meta">' + meta + '</span>'
         + '<span class="sr-only"> — ver en el gráfico histórico</span></button>';
-    }).join('');
-    box.style.setProperty('--filas', Math.ceil(filas.length / 2));   // 2 columnas en desktop: la izquierda lleva la mitad de arriba
+    });
+    // dos columnas independientes (cada una con sus propias alturas de fila): la izquierda lleva la mitad de arriba
+    var mitad = Math.ceil(html.length / 2);
+    box.innerHTML = '<div class="col-hoy">' + html.slice(0, mitad).join('') + '</div><div class="col-hoy">' + html.slice(mitad).join('') + '</div>';
     box.addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('.fila') : null;
       if (b) irAlGrafico(b.getAttribute('data-id'));
@@ -866,9 +883,9 @@
   }
   // Hora de la última verificación: API pública de GitHub (timeout corto, nunca bloquea); si falla, data.ultima_captura
   function verificacion() {
-    var v = el('#verif'); if (!v) return;
+    var v = el('#verif'); if (!v || OG) return;
     var cap = D.ultima_captura ? fmtAsu(D.ultima_captura) : '';
-    v.innerHTML = cap ? '<span class="vd">\u00b7 </span>último cambio capturado ' + esc(cap) : '';
+    v.textContent = cap ? 'Último cambio capturado ' + cap : '';
     try {
       var ctl = window.AbortController ? new AbortController() : null;
       var to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
@@ -879,7 +896,7 @@
           clearTimeout(to);
           var t = j && j.workflow_runs && j.workflow_runs[0] && j.workflow_runs[0].updated_at;
           var f = t ? fmtAsu(t) : '';
-          if (f) v.innerHTML = '<span class="vd">\u00b7 </span>verificado ' + esc(f);
+          if (f) v.textContent = 'Verificado ' + f;
         })
         .catch(function () { /* queda el texto de respaldo */ });
     } catch (e) { /* queda el texto de respaldo */ }
@@ -980,7 +997,7 @@
   function wireControls() {
     [['vista', 'vista'], ['oil', 'oil'], ['rango', 'rango']].forEach(function (c) {
       document.querySelectorAll('input[name=' + c[0] + ']').forEach(function (i) {
-        i.addEventListener('change', function () { if (i.checked) { state[c[1]] = i.value; render(); } });
+        i.addEventListener('change', function () { if (i.checked) { state[c[1]] = i.value; if (c[0] === 'oil') textoOil(); render(); } });
       });
     });
     [['liq', 'glp'], ['glp', 'liq']].forEach(function (pair) {
@@ -1005,13 +1022,18 @@
     ro.observe(document.body);
   }
 
+  // Frescura y pie de fuentes nombran solo la serie internacional activa (nunca una serie fija)
+  function textoOil() {
+    var u = D.ultimo_dato || {}, k = state.oil, fr = el('#frescura'), pf = el('#fuente-oil');
+    fr.textContent = k !== 'none' && u[k] ? 'Petróleo (EIA): ' + OIL_NOMBRE[k] + ' al ' + fmtIso(u[k]) + '.' : '';
+    if (pf) pf.textContent = k === 'none' ? 'Brent (Europa, FOB) o diésel ULSD (Costa del Golfo, EE.UU.), según la serie elegida'
+      : OIL_FUENTE[k] + (u[k] ? ', al ' + fmtIso(u[k]) : '');
+  }
   function textos() {
     var u = D.ultimo_dato || {};
-    var o = [];
-    if (u.wti) o.push('WTI al ' + fmtIso(u.wti));
-    if (u.ulsd) o.push('ULSD al ' + fmtIso(u.ulsd));
-    el('#frescura').textContent = o.length ? 'Petróleo (EIA): ' + o.join(', ') + '.' : '';
-    if (D.generado) el('#generado').textContent = 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
+    textoOil();
+    var pe = u.petropar ? 'Precios Petropar al ' + fmtIso(u.petropar) + '. ' : '';
+    if (D.generado) el('#generado').textContent = pe + 'Sitio generado el ' + fmtIso(String(D.generado).slice(0, 10)) + '.';
     var hu = (D.productos || []).filter(function (p) { return (p.huecos || []).length; }).map(function (p) {
       return p.nombre + ': ' + p.huecos.map(function (h) {
         return h.hasta ? fmtIso(h.desde) + '\u2013' + fmtIso(h.hasta) : 'desde ' + fmtIso(h.desde) + ' (sin retomar)';
@@ -1020,11 +1042,139 @@
     el('#nota-huecos').textContent = hu.length ? 'Hoy: ' + hu.join(' ') : 'Hoy no hay huecos conocidos.';
   }
 
+  /* ---------- descargas ---------- */
+  function bajar(nombre, blob) {
+    var a = document.createElement('a'), u = URL.createObjectURL(blob);
+    a.href = u; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
+  }
+  function csvCelda(v) {
+    var t = v == null ? '' : String(v);
+    // texto que Excel tomaría como fórmula: se antepone un apóstrofo (los números negativos no se tocan)
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t) && !/^-?\d+(\.\d+)?$/.test(t)) t = "'" + t;
+    return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function csv(cab, filas) {
+    // BOM para que Excel abra bien los acentos
+    return new Blob(['﻿' + [cab].concat(filas).map(function (f) { return f.map(csvCelda).join(','); }).join('\r\n') + '\r\n'],
+      { type: 'text/csv;charset=utf-8' });
+  }
+  function csvVigentes() {
+    var nom = {}; (D.productos || []).forEach(function (p) { nom[p.id] = p.nombre; });
+    return csv(['product_id', 'producto', 'unidad', 'precio_gs', 'vigente_desde', 'fecha_vigencia_confirmada', 'estado', 'por_confirmar',
+      'precio_anterior_gs', 'fecha_anterior', 'cambio_gs'],
+      (D.tarjetas || []).filter(function (t) { return t.precio != null; }).map(function (t) {
+        var c = t.cambio || {};
+        return [t.id, nom[t.id] || t.id, t.unidad, t.precio, t.vigente_desde, t.fecha_vigencia_confirmada ? 'si' : 'no',
+          t.estado, t.por_confirmar ? 'si' : 'no', c.precio_anterior, c.fecha_anterior, c.abs];
+      }));
+  }
+  function csvHistorico() {
+    return csv(['fecha_vigencia', 'product_id', 'producto', 'unidad', 'precio_gs', 'tipo_precio', 'estado', 'fecha_estado', 'fuente', 'fuente_url', 'nota'],
+      filasTabla().slice().sort(function (a, b) { return a.r.fecha < b.r.fecha ? -1 : (a.r.fecha > b.r.fecha ? 1 : a.o - b.o); }).map(function (f) {
+        var r = f.r;
+        return [r.fecha, f.id, f.nombre, f.unidad, r.precio, r.tipo_precio, r.estado, r.fecha_estado, r.fuente, (r.urls || []).join(' | '), r.nota];
+      }));
+  }
+  function wireDescargas() {
+    var btn = el('#btn-descarga'), lista = el('#menu-descarga-lista');
+    function abrir(si) {
+      lista.hidden = !si; btn.setAttribute('aria-expanded', si ? 'true' : 'false');
+      if (si) { var b0 = lista.querySelector('button'); if (b0) b0.focus(); }
+    }
+    btn.addEventListener('click', function () { abrir(lista.hidden); });
+    lista.addEventListener('click', function (ev) {
+      var b = ev.target.closest ? ev.target.closest('[data-csv]') : null;
+      if (!b) return;
+      var dia = (D.ultimo_dato && D.ultimo_dato.petropar) || iso(new Date());
+      if (b.getAttribute('data-csv') === 'vigentes') bajar('petropar_precios_vigentes_' + dia + '.csv', csvVigentes());
+      else bajar('petropar_precios_historico_' + dia + '.csv', csvHistorico());
+      abrir(false); btn.focus();
+    });
+    document.addEventListener('click', function (ev) {
+      if (!lista.hidden && !el('#menu-descarga').contains(ev.target)) abrir(false);
+    });
+    el('#menu-descarga').addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !lista.hidden) { abrir(false); btn.focus(); }
+    });
+    el('#btn-png').addEventListener('click', exportarPng);
+  }
+
+  /* Exportar el gráfico visible a PNG: SIEMPRE en tema claro (contenedor .tema-claro fuera de pantalla, a 1200 px de ancho),
+     con título, fuente y fecha dibujados en el canvas. Los estilos calculados se copian al SVG para que se vea igual fuera de la página. */
+  var PROPS_SVG = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'stroke-linejoin',
+    'stroke-linecap', 'opacity', 'font-size', 'font-weight', 'font-style', 'paint-order', 'text-anchor', 'dominant-baseline', 'display', 'visibility'];
+  function estilosEnLinea(svg) {
+    [svg].concat(Array.prototype.slice.call(svg.querySelectorAll('*'))).forEach(function (n) {
+      var cs = getComputedStyle(n), st = '';
+      PROPS_SVG.forEach(function (k) { var v = cs.getPropertyValue(k); if (v) st += k + ':' + v + ';'; });
+      n.setAttribute('style', st + 'font-family:Inter,Helvetica,Arial,sans-serif;');
+      n.removeAttribute('class');
+    });
+  }
+  function exportarPng() {
+    var btn = el('#btn-png'), W = 1200, PAD = 40;
+    btn.disabled = true;
+    var caja = document.createElement('div');
+    caja.className = 'tema-claro';
+    caja.setAttribute('aria-hidden', 'true');
+    caja.style.cssText = 'position:fixed;left:-20000px;top:0;width:' + (W - 2 * (PAD - 8)) + 'px;background:#fcfcfb';
+    caja.innerHTML = '<div class="chart" id="chart-export"></div>';
+    document.body.appendChild(caja);
+    var o = state.tab === 'glp' ? optsGlp() : optsLiq();
+    o.leyendaId = null; o.altura = 560;
+    try { drawChart('chart-export', o); } catch (e) { caja.remove(); btn.disabled = false; throw e; }
+    delete charts['chart-export'];
+    var svg = caja.querySelector('svg');
+    if (!svg) { caja.remove(); btn.disabled = false; return; }
+    estilosEnLinea(svg);
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    var txt = new XMLSerializer().serializeToString(svg);
+    var sw = +svg.getAttribute('width'), sh = +svg.getAttribute('height');
+    caja.remove();
+
+    var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar' : 'Precios de combustibles de Petropar y precio del petróleo';
+    var subt = state.tab === 'glp' ? 'Guaraníes por kg y por litro, nominal'
+      : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100 con ' + o.oil.short : '; ' + o.oil.short + ' en US$ por galón (eje derecho, escala independiente)') : '');
+    var u = D.ultimo_dato || {};
+    var fuente = 'Fuente: Petropar (respuesta AIP N° 90150, prensa y página oficial)' + (o.oil ? '; U.S. Energy Information Administration (EIA), ' + OIL_FUENTE[o.oil.key] : '') + '.';
+    var fecha = 'Datos al ' + fmtIso(u.petropar || iso(new Date())) + (o.oil && u[o.oil.key] ? ' (' + o.oil.short + ' al ' + fmtIso(u[o.oil.key]) + ')' : '') + ' · combuspy-tracker.vercel.app';
+    var HC = 96, HP = 64, H = HC + sh + HP, k = 2;
+    var cv = document.createElement('canvas');
+    cv.width = W * k; cv.height = H * k;
+    var cx = cv.getContext('2d');
+    cx.scale(k, k);
+    cx.fillStyle = '#fcfcfb'; cx.fillRect(0, 0, W, H);
+    var img = new Image();
+    img.onload = function () {
+      var ff = 'Inter, Helvetica, Arial, sans-serif';
+      cx.fillStyle = '#0b0b0b'; cx.font = '800 26px ' + ff; cx.fillText(titulo, PAD - 8, 44);
+      cx.fillStyle = '#52514e'; cx.font = '400 15px ' + ff; cx.fillText(subt, PAD - 8, 72);
+      cx.drawImage(img, PAD - 8, HC, sw, sh);
+      cx.fillStyle = '#dcdad4'; cx.fillRect(PAD - 8, HC + sh + 12, W - 2 * (PAD - 8), 1);
+      cx.fillStyle = '#7a7974'; cx.font = '400 13px ' + ff;
+      cx.fillText(fuente, PAD - 8, HC + sh + 34); cx.fillText(fecha, PAD - 8, HC + sh + 52);
+      cv.toBlob(function (b) {
+        btn.disabled = false;
+        if (b) bajar('petropar_' + (state.tab === 'glp' ? 'glp' : 'combustibles') + '_' + (u.petropar || iso(new Date())) + '.png', b);
+      }, 'image/png');
+    };
+    img.onerror = function () { btn.disabled = false; };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt);
+  }
+
   /* ---------- arranque ---------- */
   function init(data) {
     prepare(data);
     state.sel = new Set(liquidos().map(function (p) { return p.id; }));
-    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls();
+    textos(); buildChips(); renderLista(); verificacion(); renderEventos(); wireControls(); wireDescargas();
+    if (OG) {
+      var u = D.ultimo_dato || {}, pf = document.createElement('p');
+      pf.className = 'og-fuente';
+      pf.textContent = 'Gs por litro (nominal) y ' + (OIL_NOMBRE[state.oil] || 'petróleo') + ' en US$ por galón, escalas independientes. Fuente: Petropar; EIA. Datos al '
+        + fmtIso(u.petropar || '') + '. combuspy-tracker.vercel.app';
+      el('#chart-liq').after(pf);
+    }
     var dt = el('#det-tabla');   // la tabla completa se arma solo al abrir (o con ?tabla=1, útil para capturas)
     dt.addEventListener('toggle', function () { if (dt.open) armarTabla(); });
     try { if (new URLSearchParams(location.search).get('tabla') === '1') { dt.open = true; armarTabla(); } } catch (e) { /* sin parámetros */ }
@@ -1039,6 +1189,10 @@
     } catch (e) { /* sin parámetros */ }
     render();
   }
+
+  // El anillo de foco de los segmentados aparece solo al navegar con teclado: un click (que enfoca el radio) no lo muestra
+  document.addEventListener('pointerdown', function () { document.documentElement.classList.add('con-puntero'); }, true);
+  document.addEventListener('keydown', function () { document.documentElement.classList.remove('con-puntero'); }, true);
 
   initTema();
   fetch('data.json', { cache: 'no-cache' })
