@@ -197,7 +197,7 @@
   /* ---------- escalas ---------- */
   function niceOilStep(max, n) {
     var need = max / n, base = Math.pow(10, Math.floor(Math.log10(need)));
-    var mult = [1, 2, 2.5, 5, 10];
+    var mult = [1, 2, 2.5, 3, 4, 5, 6, 8, 10];   // pasos intermedios: el eje no queda con el doble de lo necesario
     for (var i = 0; i < mult.length; i++) if (base * mult[i] >= need) return base * mult[i];
     return base * 10;
   }
