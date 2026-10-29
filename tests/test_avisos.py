@@ -181,3 +181,17 @@ def test_revisar_no_atribuye_el_pr_pendiente_a_este_cambio():
                                        filas_nuevas=[FILA], alertas=[ALERTA]),
                                RUN, "https://github.com/x/y/pull/7", pr_pendiente=True)
     assert "PR: " not in avisos[1].cuerpo
+
+
+def test_revisar_se_cierra_sin_alertas_ni_prs_pendientes(tmp_path):
+    gh = GH(issues=[{"number": 1, "label": "revisar", "body": "x", "comments": [], "state": "open"}])
+    con_alertas = escribir(tmp_path, resumen(revisar=True, clave_alertas="a", alertas=[ALERTA]))
+    av.main(["scraper", "--resumen", con_alertas, "--run-url", RUN], gh=gh)
+    assert gh.issues[0]["state"] == "open"
+    gh.prs_abiertos = [5]
+    sin_alertas = escribir(tmp_path, resumen())
+    av.main(["scraper", "--resumen", sin_alertas, "--run-url", RUN], gh=gh)
+    assert gh.issues[0]["state"] == "open"  # el PR pendiente puede tener la etiqueta revisar
+    gh.prs_abiertos = []
+    av.main(["scraper", "--resumen", sin_alertas, "--run-url", RUN], gh=gh)
+    assert gh.issues[0]["state"] == "closed"

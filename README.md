@@ -89,7 +89,8 @@ pytest antes de abrirlos.
 4. Si está bien: **Merge**. `sitio.yml` regenera `site/data.json` y el sitio se actualiza.
    Si está mal: cerrar el PR sin mergear (la misma propuesta no se vuelve a abrir) y corregir a
    mano si hace falta.
-5. `precio-nuevo` se cierra solo cuando no quedan PRs de precios abiertos; `revisar` se cierra a mano.
+5. `precio-nuevo` se cierra solo cuando no quedan PRs de precios abiertos, y `revisar` cuando
+   además una corrida sale sin alertas. Se pueden cerrar a mano antes.
 
 Hay un solo PR de precios abierto a la vez: si Petropar cambia de nuevo mientras uno espera, el
 cambio se avisa en el issue `precio-nuevo` y se propone en un PR nuevo apenas se mergee o cierre
@@ -107,5 +108,36 @@ Reglas que no se negocian (ver CLAUDE.md): nunca inventar ni completar precios (
 
 ## Publicación (Vercel)
 
-Sitio estático sin build: en Vercel, importar el repo con *Root Directory* = `site` y sin
-comando de build. Cada push a main (incluidos los commits de `oil.yml` y `sitio.yml`) publica.
+El sitio es estático y no tiene paso de build: Vercel solo sirve la carpeta `site/`.
+
+1. Entrar a https://vercel.com/signup y elegir **Continue with GitHub** (plan Hobby, gratis;
+   alcanza para un repo privado de una cuenta personal).
+2. En el panel: **Add New… → Project**.
+3. En *Import Git Repository*, si `petropar-tracker` no aparece: **Adjust GitHub App
+   Permissions** → *Only select repositories* → elegir `alanhlopez/petropar-tracker` → **Save**.
+   Volver a Vercel y tocar **Import** junto al repo.
+4. En *Configure Project*:
+   - **Project Name**: el que quieras (define la URL, p. ej. `petropar-tracker.vercel.app`).
+   - **Framework Preset**: `Other`.
+   - **Root Directory**: **Edit** → elegir `site` → **Continue**.
+   - **Build and Output Settings**: dejar todo vacío/por defecto (sin *Build Command*, sin
+     *Install Command*; el *Output Directory* es la propia carpeta `site`).
+   - **Environment Variables**: ninguna (la clave de la EIA solo la usa GitHub Actions).
+5. **Deploy**. Al minuto da la URL de producción; abrirla y comprobar que carga el gráfico y
+   que dice "Datos al …" con la fecha esperada.
+6. Recomendado, en **Settings** del proyecto:
+   - *Git → Production Branch*: `main` (ya viene así).
+   - *Build and Deployment → Root Directory*: activar **Skip deployments when there are no
+     changes to the root directory or its dependencies**, para no redesplegar con commits que
+     no tocan `site/`.
+   - *Deployment Protection*: dejar *Vercel Authentication* solo para las **Preview
+     Deployments** (la producción tiene que ser pública para compartirla).
+7. Opcional: *Settings → Domains* para un dominio propio.
+
+Qué pasa después, sin tocar nada:
+
+- Cada push a main que cambie `site/` publica en producción: los commits diarios de `oil.yml`,
+  los de `sitio.yml` al aprobar un PR de precios y los cambios de código.
+- Los PR del scraper no tocan `site/`, así que no generan preview; el sitio se actualiza cuando
+  se mergean y `sitio.yml` regenera `data.json`.
+- Si un deploy falla, Vercel lo marca en el commit de GitHub y manda un correo a la cuenta.

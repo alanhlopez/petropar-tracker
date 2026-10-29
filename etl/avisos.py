@@ -203,9 +203,13 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
         avisos = avisos_scraper(resumen, args.run_url, args.pr_url or None, args.pr_pendiente)
         if resumen["estado"] == "ok" and cerrar("scraper-roto", f"El scraper volvió a andar: {args.run_url}", gh):
             print("scraper-roto: cerrado")
-        if (resumen["estado"] == "ok" and not resumen["cambio"] and not prs_de_precios_abiertos(gh)
+        sin_prs = resumen["estado"] == "ok" and not prs_de_precios_abiertos(gh)
+        if (sin_prs and not resumen["cambio"]
                 and cerrar("precio-nuevo", f"Sin PRs de precios pendientes: {args.run_url}", gh)):
             print("precio-nuevo: cerrado")
+        if (sin_prs and not resumen["revisar"]
+                and cerrar("revisar", f"Ninguna regla de plausibilidad disparada: {args.run_url}", gh)):
+            print("revisar: cerrado")
     else:
         ultima = ultima_corrida_exitosa(args.workflow, gh)
         ahora = datetime.now(timezone.utc)

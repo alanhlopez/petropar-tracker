@@ -55,7 +55,9 @@
       PRODS[m.id] = { meta: m, rows: rows, segs: [] };
     });
     var ult = (D.ultimo_dato && D.ultimo_dato.petropar) || iso(new Date());
-    var finIso = maxRow && maxRow > ult ? maxRow : ult;
+    // los precios siguen vigentes hasta que se generó data.json, no solo hasta el último cambio
+    var gen = D.generado ? String(D.generado).slice(0, 10) : '';
+    var finIso = [ult, maxRow || '', gen].sort().pop();
     XMAX = parse(finIso);
     XMIN_ALL = parse(minRow && minRow < '2009-01-02' ? minRow : '2009-01-01');
     if (minRow && minRow > '2009-01-01') XMIN_ALL = parse(minRow);
