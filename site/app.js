@@ -1026,8 +1026,7 @@
   function textoOil() {
     var u = D.ultimo_dato || {}, k = state.oil, fr = el('#frescura'), pf = el('#fuente-oil');
     fr.textContent = k !== 'none' && u[k] ? 'Petróleo (EIA): ' + OIL_NOMBRE[k] + ' al ' + fmtIso(u[k]) + '.' : '';
-    if (pf) pf.textContent = k === 'none' ? 'Brent (Europa, FOB) o diésel ULSD (Costa del Golfo, EE.UU.), según la serie elegida'
-      : OIL_FUENTE[k] + (u[k] ? ', al ' + fmtIso(u[k]) : '');
+    if (pf) pf.textContent = k === 'none' ? 'Brent o diésel ULSD' : OIL_FUENTE[k] + (u[k] ? ', al ' + fmtIso(u[k]) : '');
   }
   function textos() {
     var u = D.ultimo_dato || {};
@@ -1185,14 +1184,29 @@
         state.rango = rg;
         var ri = document.querySelector('input[name=rango][value="' + rg + '"]'); if (ri) ri.checked = true;
       }
-      if (qp.get('pestana') === 'glp') { el('#tab-glp').click(); return; }
+      if (qp.get('pestana') === 'glp') { el('#tab-glp').click(); abrirMetodologia(); return; }
     } catch (e) { /* sin parámetros */ }
     render();
+    abrirMetodologia();
   }
 
   // El anillo de foco de los segmentados aparece solo al navegar con teclado: un click (que enfoca el radio) no lo muestra
   document.addEventListener('pointerdown', function () { document.documentElement.classList.add('con-puntero'); }, true);
   document.addEventListener('keydown', function () { document.documentElement.classList.remove('con-puntero'); }, true);
+
+  // Metodología: desplegable cerrado; con #metodologia en la URL (o un link a esa ancla) se abre y baja hasta ahí
+  function abrirMetodologia() {
+    if (location.hash !== '#metodologia') return;
+    var d = document.getElementById('metodologia');
+    if (!d) return;
+    d.open = true;
+    d.scrollIntoView({ block: 'start' });
+  }
+  window.addEventListener('hashchange', abrirMetodologia);
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[href="#metodologia"]') : null;
+    if (a && location.hash === '#metodologia') { ev.preventDefault(); abrirMetodologia(); }   // mismo hash: hashchange no salta
+  });
 
   initTema();
   fetch('data.json', { cache: 'no-cache' })

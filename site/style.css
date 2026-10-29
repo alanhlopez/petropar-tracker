@@ -236,17 +236,21 @@ td a, .ev a { color: var(--link); }
 .ev li:last-child { border-bottom: 0; }
 .ev .tag { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
 
-.nota { max-width: 72ch; }
-.nota ul { margin: 0; padding-left: 1.1em; font-size: .9rem; color: var(--muted); }
+.nota ul { max-width: 72ch; margin: 0; padding-left: 1.1em; font-size: .9rem; color: var(--muted); }
 .nota li { margin-bottom: var(--s2); }
 .nota strong { color: var(--text); }
 
 /* pie */
 .pie { margin-top: var(--s6); padding-bottom: var(--s6); font-size: .82rem; color: var(--muted); }
-.pie-grid { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr; gap: var(--s4); border-top: 1px solid var(--text); padding-top: var(--s3); }
+.pie-grid { display: grid; grid-template-columns: 2.4fr 1fr 1fr; gap: var(--s4); border-top: 1px solid var(--text); padding-top: var(--s3); }
 .pie h2 { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 0 0 var(--s1); }
 .pie p { margin: 0 0 var(--s2); }
-@media (max-width: 760px) { .pie-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .pie-grid { grid-template-columns: 1fr 1fr; } .pie-fuentes { grid-column: 1 / -1; } }
+.redes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.redes a { display: inline-flex; align-items: center; gap: var(--s2); color: var(--muted); text-decoration: none; }
+.redes a:hover, .redes a:focus-visible { color: var(--text); }
+.redes a:hover span { text-decoration: underline; text-underline-offset: 2px; }
+.redes svg { flex: none; }
 @media (max-width: 460px) { .pie-grid { grid-template-columns: 1fr; gap: var(--s3); } }
 
 @media (max-width: 640px) {
@@ -317,3 +321,4 @@ td a, .ev a { color: var(--link); }
 .modo-og .seccion { margin-top: var(--s2); }
 .modo-og .og-fuente { display: block; font-size: 14px; color: var(--faint); margin: 6px 0 0; }
 .og-fuente { display: none; }
+#metodologia { scroll-margin-top: var(--s3); }
