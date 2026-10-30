@@ -73,6 +73,7 @@
     return s.join(',');
   }
   function gs(n) { return 'G. ' + miles(n); }
+  function mesTexto(am) { return am ? MESES[+am.slice(5, 7) - 1] + ' ' + am.slice(0, 4) : ''; }
   function fmtIso(iso) { if (!iso) return ''; var p = String(iso).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
   function fmtD(d) { return fmtIso(d.toISOString().slice(0, 10)); }
   function iso(d) { return d.toISOString().slice(0, 10); }
@@ -141,6 +142,11 @@
       p.segs.sort(function (u, v) { return u.pts[0].d - v.pts[0].d; });
     });
 
+    if (D.ipc && D.ipc.serie && D.ipc.serie.length) {
+      IPC = { base: D.ipc.base, mapa: {} };
+      D.ipc.serie.forEach(function (r) { IPC.mapa[r[0]] = r[1]; });
+      IPC.vb = IPC.mapa[IPC.base];
+    }
     ['brent', 'ulsd'].forEach(function (k) {
       var o = (D.petroleo || {})[k];
       if (!o) return;
@@ -151,18 +157,64 @@
     });
   }
 
-  function seriesPrice(id) {
+  /* Vistas: 'dual' e 'index' usan el precio nominal; 'usd' = US$ por litro con el tipo de cambio del BCP de la fecha de
+     vigencia (calculado en data.json); 'real' = Gs constantes del último mes del IPC (precio vigente de cada mes
+     por IPC(base) / IPC(mes): la línea baja mes a mes aunque el precio nominal no cambie). */
+  var LITROS_POR_GALON = 3.785411784;
+  var IPC = null;   // {base, mapa: {'AAAA-MM': ipc}, vb}
+  function mesIso(d) { return d.toISOString().slice(0, 7); }
+  function factorReal(d) {
+    if (!IPC) return null;
+    var v = IPC.mapa[mesIso(d)];
+    if (v == null && mesIso(d) > IPC.base) v = IPC.vb;   // meses posteriores a la base: sin deflactar todavía
+    return v ? IPC.vb / v : null;
+  }
+  function segsVista(p, vista) {
+    p.cache = p.cache || {};
+    if (p.cache[vista]) return p.cache[vista];
+    var out = [];
+    p.segs.forEach(function (sg) {
+      var pts = [];
+      if (vista === 'usd') {
+        sg.pts.forEach(function (q) { if (q.row.usd != null) pts.push({ d: q.d, v: q.row.usd, row: q.row }); });
+      } else {   // real: un punto por fila y uno al comienzo de cada mes mientras rige
+        sg.pts.forEach(function (q, i) {
+          var hasta = i + 1 < sg.pts.length ? sg.pts[i + 1].d : sg.end, f = factorReal(q.d);
+          if (f) pts.push({ d: q.d, v: q.v * f, row: q.row });
+          var m = new Date(Date.UTC(q.d.getUTCFullYear(), q.d.getUTCMonth() + 1, 1));
+          for (; m < hasta; m = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 1))) {
+            var fm = factorReal(m); if (fm) pts.push({ d: m, v: q.v * fm, row: q.row });
+          }
+        });
+      }
+      if (pts.length) out.push({ pts: pts, end: sg.end });
+    });
+    return (p.cache[vista] = out);
+  }
+  function seriesPrice(id, vista) {
     var p = PRODS[id];
     if (!p || !p.segs.length) return null;
-    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: p.segs, gaps: p.gaps, rows: p.rows,
+    var segs = vista === 'usd' || vista === 'real' ? segsVista(p, vista) : p.segs;
+    if (!segs.length) return null;
+    return { id: id, kind: 'price', name: p.meta.nombre, short: CORTOS[id] || p.meta.nombre, color: cvar(id), segs: segs, gaps: p.gaps, rows: p.rows,
+      vista: vista || 'dual',
+      // filas en la unidad de la vista (para la variación del período)
+      filasV: vista === 'usd' || vista === 'real'
+        ? [].concat.apply([], segs.map(function (sg) { return sg.pts.map(function (q) { return { fecha: iso(q.d), precio: q.v }; }); }))
+        : p.rows,
       hasMax: p.rows.some(function (r) { return r.tipo_precio === 'max_o_sugerido_venta_publico'; }) };
   }
   // diario = true: serie diaria (rangos de 2 años o menos); si no, promedio mensual
-  function seriesOil(k, diario) {
+  function seriesOil(k, diario, porLitro) {
     var o = OIL[k];
     if (!o || !o.mensual.length) return null;
     var pts = diario && o.diario.length ? o.diario : o.mensual;
-    return { id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'brent' ? 'Brent' : 'ULSD', color: 'var(--oil)',
+    if (porLitro) {   // vista US$ por litro: el petróleo va en el mismo eje que los combustibles
+      var ck = (diario ? 'dl' : 'ml');
+      o.cache = o.cache || {};
+      pts = o.cache[ck] = o.cache[ck] || pts.map(function (q) { return { d: q.d, iso: q.iso, v: q.v / LITROS_POR_GALON }; });
+    }
+    return { porLitro: !!porLitro, id: 'oil_' + k, kind: 'oil', key: k, name: OIL_NOMBRE[k], short: k === 'brent' ? 'Brent' : 'ULSD', color: 'var(--oil)',
       diario: pts === o.diario, segs: [{ pts: pts, end: pts[pts.length - 1].d }], gaps: [] };
   }
   // último punto con fecha <= t (petróleo), o null
@@ -246,19 +298,21 @@
   /* Variación del período visible para la etiqueta final: precio vigente al final contra el vigente al inicio
      (Rango.variacion; nunca a través de un hueco). Mismo criterio de flecha y color que "Precios hoy": ▲ sube, ▼ baja. */
   function variacionSerie(s, xmin, xmax) {
-    var a, b;
+    var a, b, desde = null;
     if (s.kind === 'oil') {
       var pa = ptLE(s.segs[0].pts, xmin), pb = ptLE(s.segs[0].pts, xmax);
       if (!pa || !pb || !pa.v) return null;
       a = pa.v; b = pb.v;
     } else {
-      var r = Rango.variacion(s.rows, xmin, xmax, PRODS[s.id].meta.huecos || []);
+      var r = Rango.variacion(s.filasV || s.rows, xmin, xmax, PRODS[s.id].meta.huecos || []);
       if (!r) return null;
-      a = r.inicio.precio; b = r.fin.precio;
+      a = r.inicio.precio; b = r.fin.precio; desde = r.desde;
     }
     var pct = Math.round((b / a - 1) * 1000) / 10;
-    if (pct === 0) return { pct: 0, cls: 'igual', txt: '= 0%' };
-    return { pct: pct, cls: pct > 0 ? 'sube' : 'baja', txt: (pct > 0 ? '▲ +' : '▼ −') + dec(Math.abs(pct), 1) + '%' };
+    // empieza después del inicio del rango: se aclara desde cuándo ("desde mar-2011")
+    var nota = desde ? 'desde ' + MESES[+desde.slice(5, 7) - 1] + '-' + desde.slice(0, 4) : '';
+    if (pct === 0) return { pct: 0, cls: 'igual', txt: '= 0%', nota: nota };
+    return { pct: pct, cls: pct > 0 ? 'sube' : 'baja', txt: (pct > 0 ? '▲ +' : '▼ −') + dec(Math.abs(pct), 1) + '%', nota: nota };
   }
 
   /* ---------- colisión de etiquetas ---------- */
@@ -305,7 +359,8 @@
     }
 
     // layout
-    var dualAx = showOil && !index;
+    var vistaUsd = o.view === 'usd', vistaReal = o.view === 'real';
+    var dualAx = showOil && !index && !vistaUsd;   // en US$ por litro el petróleo comparte el eje
     var axisR = dualAx && !mobile ? 58 : 0;   // en móvil los ticks US$ van por dentro del área
     var labW = mobile ? 0 : 238;      // en móvil las etiquetas finales van en un bloque debajo del gráfico
     var m = { top: 48, left: mobile ? 41 : 64, bottom: 26, right: axisR + (mobile ? 8 : labW + 4) };
@@ -352,7 +407,9 @@
       ticksL = yL.ticks(5);
     } else {
       // los dos ejes se reajustan al rango visible, con margen
-      var eL = ejeConMargen(yExtVisible(priceAct, xmin, xmax) || [0, 12000], 6, true);
+      var eL = ejeConMargen(yExtVisible(vistaUsd && showOil && activas.indexOf(o.oil) >= 0 ? priceAct.concat([o.oil]) : priceAct, xmin, xmax)
+        || (vistaUsd ? [0, 2] : [0, 12000]), 6, true);
+      var decL = vistaUsd ? decPaso(eL.paso) : 0;
       var n = eL.n;
       ticksL = d3.range(0, n + 1).map(function (i) { return eL.a + i * eL.paso; });
       yL = d3.scaleLinear().domain([eL.a, eL.a + eL.paso * n]).range([ih, band]);
@@ -420,7 +477,7 @@
     // grilla y ejes
     g.append('g').attr('class', 'grid').selectAll('line').data(ticksL).join('line')
       .attr('x1', 0).attr('x2', iw).attr('y1', yL).attr('y2', yL);
-    var fmtL = index ? function (v) { return dec(v, 0); } : function (v) { return miles(v); };
+    var fmtL = index ? function (v) { return dec(v, 0); } : (vistaUsd ? function (v) { return dec(v, decL); } : function (v) { return miles(v); });
     g.append('g').attr('class', 'axis').call(d3.axisLeft(yL).tickValues(ticksL).tickFormat(fmtL).tickSize(0).tickPadding(6))
       .call(function (a) { a.select('.domain').remove(); }).selectAll('text').attr('font-size', fs);
     var nY = (xmax - xmin) / (365.25 * 864e5);
@@ -444,7 +501,7 @@
       .selectAll('text').attr('font-size', fs);
     // captions de ejes
     g.append('text').attr('x', -m.left + 2).attr('y', -9).attr('font-size', mobile ? 10 : 11.5)
-      .text(index ? 'Índice (base 100)' : (o.ejeL || 'Gs por litro'));
+      .text(index ? 'Índice (base 100)' : (vistaUsd ? 'US$ por litro' : (vistaReal ? 'Gs de ' + mesTexto(IPC.base) + ' por litro' : (o.ejeL || 'Gs por litro'))));
     if (dualAx) {
       if (mobile) {
         /* ticks US$ en móvil: se dibujan después de las líneas (con halo) */
@@ -601,11 +658,14 @@
         lab.push({ s: s, y0: yOf(s, pl.v), v: tr(s, pl.v), finTxt: 'hasta ' + fmtD(fe), corte: x(fe) });
       }
     });
-    var gap = fs + 3;
+    // si alguna variación lleva "desde mmm-aaaa" (segunda línea), las etiquetas necesitan dos renglones
+    var conNota = lab.some(function (it) { return it.varia && it.varia.nota; });
+    var gap = conNota ? 2 * fs + 6 : fs + 3;
     var lx = iw + axisR + 6;
     function txtFin(it) { return it.finTxt || valTxt(it.s, it.v); }
     function valTxt(s, v) {
       if (index) return dec(v, 0);
+      if (vistaUsd) return 'US$ ' + dec(v, 2) + (s.kind === 'oil' ? '/L' : '');
       return s.kind === 'oil' ? 'US$ ' + dec(v, 2) + '/gal' : miles(v);
     }
     if (mobile) {
@@ -615,12 +675,12 @@
       relax(lab, gap, band, ih + 6);
       lab.forEach(function (it) {
         var s = it.s;
-        if (!it.finTxt) g.append('circle').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', s.color);
+        if (!it.finTxt) g.append('circle').attr('class', 'lbl-con').attr('cx', iw).attr('cy', it.y0).attr('r', 3).style('fill', s.color);
         if (Math.abs(it.y - it.y0) > 1 || it.finTxt) {
-          g.append('line').attr('x1', it.finTxt ? it.corte : iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color)
+          g.append('line').attr('class', 'lbl-con').attr('x1', it.finTxt ? it.corte : iw).attr('y1', it.y0).attr('x2', lx).attr('y2', it.y).style('stroke', s.color)
             .attr('stroke-width', 1).attr('stroke-dasharray', it.finTxt ? '2 3' : null).attr('opacity', it.finTxt ? 0.6 : 1);
         }
-        var sw = g.append('g').attr('transform', 'translate(' + lx + ',' + it.y + ')');
+        var sw = it.grp = g.append('g').attr('class', 'lbl-g').attr('transform', 'translate(' + lx + ',' + it.y + ')');
         if (s.kind === 'oil') {
           sw.append('line').attr('x1', 0).attr('x2', 14).attr('y1', 0).attr('y2', 0).style('stroke', s.color)
             .attr('stroke-width', 2.6).attr('stroke-linecap', 'round').attr('stroke-dasharray', '0.1 5');
@@ -634,6 +694,9 @@
         it.valT = tx.append('tspan').attr('font-weight', it.finTxt ? 400 : 700).text(txtFin(it));
         it.sepT = tx.append('tspan').attr('class', 'lbl-sep').text(it.varia ? ' · ' : '');
         it.varT = tx.append('tspan').attr('class', 'lbl-var ' + (it.varia ? it.varia.cls : '')).text(it.varia ? it.varia.txt : '');
+        // "desde mmm-aaaa": segunda línea chica (el producto empieza después del inicio del rango)
+        it.notaT = sw.append('text').attr('class', 'lbl-nota').attr('x', 18).attr('y', fs + 2).attr('font-size', fs - 1.5)
+          .text(it.varia && it.varia.nota ? it.varia.nota : '');
       });
     }
     // fecha de la columna de etiquetas mientras el cursor está sobre el gráfico
@@ -653,7 +716,7 @@
       fb.innerHTML = '<li class="fin-fecha" hidden></li>' + items.map(function (it) {
         return '<li data-sid="' + esc(it.s.id) + '"><span class="sw' + (it.s.kind === 'oil' ? ' sw-oil' : '') + '" style="border-color:' + it.s.color + '"></span> '
           + esc(it.s.kind === 'oil' ? it.s.short : it.s.name) + ' <strong>' + esc(it.txt) + '</strong>'
-          + ' <span class="var-p ' + (it.varia ? it.varia.cls : '') + '">' + (it.varia ? esc(it.varia.txt) : '') + '</span></li>';
+          + ' <span class="var-p ' + (it.varia ? it.varia.cls : '') + '">' + (it.varia ? esc(it.varia.txt + (it.varia.nota ? ' (' + it.varia.nota + ')' : '')) : '') + '</span></li>';
       }).join('');
       host.appendChild(fb);
       lab.forEach(function (it) {
@@ -706,10 +769,12 @@
     function htmlCompacto(c, t, conLink) {
       var s = c.s, h = '<div class="tt-l1"><span class="tt-dot" style="background:' + s.color + '"></span><span>';
       if (s.kind === 'oil') {   // petróleo: una sola línea ("Brent · US$ 1,79/gal · 21/11/2024")
-        h += esc(s.short) + ' · <strong>US$ ' + dec(c.p.v, 2) + '/gal</strong> · <span class="tt-f">' + esc(fechaPetroleo(s, c.p)) + '</span></span></div>';
+        h += esc(s.short) + ' · <strong>US$ ' + dec(c.p.v, 2) + (s.porLitro ? '/L' : '/gal') + '</strong> · <span class="tt-f">' + esc(fechaPetroleo(s, c.p)) + '</span></span></div>';
       } else {
         var r = c.p.row;
-        h += esc(s.name) + ' · <strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong></span></div>'
+        var vtxt = vistaUsd ? 'US$ ' + dec(c.p.v, 2) + '/L' : (vistaReal ? 'G. ' + miles(c.p.v) : gs(r.precio));
+        h += esc(s.name) + ' · <strong>' + vtxt + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : '') + '</strong>'
+          + (vistaReal ? ' <span class="tt-f">(Gs de ' + esc(mesTexto(IPC.base)) + ')</span>' : '') + '</span></div>'
           + '<div class="tt-l2">' + fmtD(t) + ' · vigente desde ' + fmtIso(r.fecha)
           + (r.firme === false ? ' · <span class="nofirme">por confirmar</span>' : '') + '</div>';
       }
@@ -720,10 +785,10 @@
     function htmlDetalle(c, t) {
       var s = c.s, h = '<button type="button" class="x" aria-label="Cerrar detalle">&times;</button>';
       if (s.kind === 'oil') {
-        var mp = OIL[s.key].mensual, mm = ptLE(mp, c.p.d);
+        var mp = seriesOil(s.key, false, s.porLitro).segs[0].pts, mm = ptLE(mp, c.p.d);
         h += '<h3><span class="tt-dot" style="background:' + s.color + '"></span>' + esc(s.name) + '</h3>'
-          + '<div><strong>US$ ' + dec(c.p.v, 2) + '/gal</strong> <span class="f">(' + esc(fechaPetroleo(s, c.p)) + ')</span></div>'
-          + (mm && s.diario ? '<div><span class="f">Promedio de ' + MESES[mm.d.getUTCMonth()] + ' ' + mm.d.getUTCFullYear() + ':</span> US$ ' + dec(mm.v, 2) + '/gal</div>' : '')
+          + '<div><strong>US$ ' + dec(c.p.v, 2) + (s.porLitro ? '/L' : '/gal') + '</strong> <span class="f">(' + esc(fechaPetroleo(s, c.p)) + ')</span></div>'
+          + (mm && s.diario ? '<div><span class="f">Promedio de ' + MESES[mm.d.getUTCMonth()] + ' ' + mm.d.getUTCFullYear() + ':</span> US$ ' + dec(mm.v, 2) + (s.porLitro ? '/L' : '/gal') + '</div>' : '')
           + '<div><span class="f">Fuente:</span> <a href="https://www.eia.gov/" target="_blank" rel="noopener noreferrer">U.S. Energy Information Administration (EIA)</a></div>';
         return h;
       }
@@ -732,6 +797,9 @@
       var hasta = hg ? 'sin datos desde ' + fmtIso(hg.aIso) : (sig ? fmtIso(sig.fecha) : 'hoy (sigue vigente)');
       h += '<h3><span class="tt-dot" style="background:' + s.color + '"></span>' + esc(s.name) + '</h3>'
         + '<div><strong>' + gs(r.precio) + (o.unidadTxt ? ' ' + esc(o.unidadTxt(s)) : ' por litro') + '</strong></div>'
+        + (r.usd != null ? '<div><span class="f">En dólares:</span> US$ ' + dec(r.usd, 2) + ' por ' + (PRODS[s.id].meta.unidad === 'kg' ? 'kg' : 'litro') + ' <span class="f">(BCP: G. '
+            + dec(r.tc, 2) + ' por US$ al ' + fmtIso(r.tc_fecha) + ')</span></div>' : '')
+        + (vistaReal ? '<div><span class="f">En Gs de ' + esc(mesTexto(IPC.base)) + ':</span> G. ' + miles(c.p.v) + ' <span class="f">(IPC del BCP)</span></div>' : '')
         + '<div><span class="f">Vigente:</span> desde ' + fmtIso(r.fecha) + ' hasta ' + hasta + '</div>'
         + '<div><span class="f">Tipo de precio:</span> ' + esc(TIPO_TXT[r.tipo_precio] || r.tipo_precio) + '</div>'
         + '<div><span class="f">Estado:</span> ' + esc(ESTADO_TXT[r.estado] || r.estado) + ' · <span class="f">fecha</span> '
@@ -744,9 +812,9 @@
       }
       if (r.nota) h += '<div class="f">' + esc(r.nota) + '</div>';
       if (showOil && OIL[o.oil.key]) {
-        var mm2 = ptLE(OIL[o.oil.key].mensual, t);
+        var mm2 = ptLE(seriesOil(o.oil.key, false, o.oil.porLitro).segs[0].pts, t);
         if (mm2) h += '<div class="sep"><span class="f">' + esc(o.oil.name) + ', promedio de ' + MESES[mm2.d.getUTCMonth()] + ' ' + mm2.d.getUTCFullYear()
-          + ':</span> US$ ' + dec(mm2.v, 2) + '/gal</div>';
+          + ':</span> US$ ' + dec(mm2.v, 2) + (o.oil.porLitro ? '/L' : '/gal') + '</div>';
       }
       return h;
     }
@@ -756,19 +824,32 @@
       lab.forEach(function (it) {
         var s = it.s, p = s.kind === 'oil' ? oilEn(s, t) : pointAt(s, t);
         var txt = p && isFinite(tr(s, p.v)) ? valTxt(s, tr(s, p.v)) : '—';
-        if (it.valT) { it.valT.text(txt); it.sepT.text(''); it.varT.text(''); }
+        if (it.valT) { it.valT.text(txt); it.sepT.text(''); it.varT.text(''); it.notaT.text(''); }
         if (it.liVal) { it.liVal.textContent = txt; it.liVar.textContent = ''; }
       });
-      if (fechaCol) fechaCol.style('display', null).text(fmtD(t));
+      if (fechaCol) {
+        fechaCol.style('display', null).text(fmtD(t));
+        g.selectAll('.lbl-con').style('display', 'none');
+        lab.slice().sort(function (a, b) { return a.y - b.y; }).forEach(function (it, i) {
+          if (it.grp) it.grp.attr('transform', 'translate(' + lx + ',' + (band + 8 + i * (fs + 7)) + ')');   // durante el hover no hay segunda línea
+        });
+      }
       if (liFecha) { liFecha.hidden = false; liFecha.textContent = 'Valores al ' + fmtD(t); }
     }
     function etiquetasFin() {
       lab.forEach(function (it) {
         var txt = txtFin(it);
-        if (it.valT) { it.valT.text(txt); it.sepT.text(it.varia ? ' · ' : ''); it.varT.text(it.varia ? it.varia.txt : ''); }
-        if (it.liVal) { it.liVal.textContent = it.liTxt || txt; it.liVar.textContent = it.varia ? it.varia.txt : ''; }
+        if (it.valT) {
+          it.valT.text(txt); it.sepT.text(it.varia ? ' · ' : ''); it.varT.text(it.varia ? it.varia.txt : '');
+          it.notaT.text(it.varia && it.varia.nota ? it.varia.nota : '');
+        }
+        if (it.liVal) { it.liVal.textContent = it.liTxt || txt; it.liVar.textContent = it.varia ? it.varia.txt + (it.varia.nota ? ' (' + it.varia.nota + ')' : '') : ''; }
       });
-      if (fechaCol) fechaCol.style('display', 'none');
+      if (fechaCol) {
+        fechaCol.style('display', 'none');
+        g.selectAll('.lbl-con').style('display', null);
+        lab.forEach(function (it) { if (it.grp) it.grp.attr('transform', 'translate(' + lx + ',' + it.y + ')'); });
+      }
       if (liFecha) liFecha.hidden = true;
     }
 
@@ -911,8 +992,8 @@
   // Opciones de cada gráfico: las usa la pantalla y también la exportación a PNG
   function optsLiq() {
     var sel = liquidos().filter(function (p) { return state.sel.has(p.id); })
-      .map(function (p) { return seriesPrice(p.id); }).filter(Boolean);
-    var oil = state.oil === 'none' ? null : seriesOil(state.oil, Rango.petroleoDiario(state.desde, state.hasta));
+      .map(function (p) { return seriesPrice(p.id, state.vista); }).filter(Boolean);
+    var oil = state.oil === 'none' ? null : seriesOil(state.oil, Rango.petroleoDiario(state.desde, state.hasta), state.vista === 'usd');
     return {
       series: sel, oil: oil, view: state.vista, desde: state.desde, hasta: state.hasta, leyendaId: 'leyenda-liq',
       vacio: 'Elegí al menos un producto para ver el gráfico.',
@@ -937,6 +1018,12 @@
     if (state.vista === 'index') {
       msg += base ? 'Índice base 100: en ' + fmtD(base) + ' (primera fecha del período con todas las series visibles) cada serie vale 100.'
         : 'Índice base 100: no hay series con datos en este período.';
+    } else if (state.vista === 'usd') {
+      msg += 'Cada precio convertido con el tipo de cambio de referencia del BCP en su fecha de vigencia.'
+        + (state.oil !== 'none' ? ' El petróleo va en el mismo eje, en US$ por litro.' : '');
+    } else if (state.vista === 'real') {
+      msg += 'Guaraníes constantes de ' + mesTexto(IPC.base) + ' (IPC del BCP); los meses posteriores van sin deflactar hasta que se publique su IPC.'
+        + (state.oil !== 'none' ? ' Petróleo en el eje derecho, en US$ por galón, con escala independiente.' : '');
     } else if (state.oil !== 'none' && seriesOil(state.oil)) {
       msg += 'Eje derecho en US$ por galón, con escala independiente: no compares alturas entre combustibles y petróleo.';
     }
@@ -1470,7 +1557,9 @@
     var titulo = state.tab === 'glp' ? 'Precio del GLP (Ñande Gas) de Petropar'
       : 'Precios de combustibles de Petropar y precio del petróleo, ' + fmtD(state.desde) + ' – ' + fmtD(state.hasta);
     var subt = state.tab === 'glp' ? 'Guaraníes por kg y por litro, nominal'
-      : 'Guaraníes por litro, nominal' + (o.oil ? (o.view === 'index' ? '; índice base 100 con ' + o.oil.short : '; ' + o.oil.short + ' en US$ por galón (eje derecho, escala independiente)') : '');
+      : (o.view === 'usd' ? 'US$ por litro (tipo de cambio de referencia del BCP en la fecha de vigencia)' + (o.oil ? '; ' + o.oil.short + ' en US$ por litro' : '')
+        : (o.view === 'real' ? 'Guaraníes constantes de ' + mesTexto(IPC.base) + ' por litro (IPC del BCP)' : 'Guaraníes por litro, nominal')
+          + (o.oil ? (o.view === 'index' ? '; índice base 100 con ' + o.oil.short : '; ' + o.oil.short + ' en US$ por galón (eje derecho, escala independiente)') : ''));
     var u = D.ultimo_dato || {};
     var fuente = 'Fuente: Petropar (respuesta AIP N° 90150, prensa y página oficial)' + (o.oil ? '; U.S. Energy Information Administration (EIA), ' + OIL_FUENTE[o.oil.key] : '') + '.';
     var fecha = 'Datos al ' + fmtIso(u.petropar || iso(new Date())) + (o.oil && u[o.oil.key] ? ' (' + o.oil.short + ' al ' + fmtIso(u[o.oil.key]) + ')' : '') + ' · combuspy-tracker.vercel.app';
@@ -1519,6 +1608,12 @@
     state.desde = r0.desde; state.hasta = r0.hasta; state.preset = Rango.presetDe(r0.desde, r0.hasta, XMIN_ALL, XMAX);
     document.querySelectorAll('input[name=rango]').forEach(function (i) { i.checked = i.value === state.preset; });
     wireNav(); wireZoom();
+    var rReal = document.querySelector('input[name=vista][value=real]');
+    if (rReal && !IPC) {   // sin data/ipc.csv la vista no se puede calcular
+      rReal.disabled = true;
+      rReal.parentNode.title = 'Falta cargar el IPC del BCP (data/ipc.csv)';
+      rReal.parentNode.classList.add('seg-off');
+    }
     try {
       var qp = new URLSearchParams(location.search);
       if (qp.get('pestana') === 'glp') { el('#tab-glp').click(); abrirMetodologia(); return; }
@@ -1529,7 +1624,10 @@
 
   // El anillo de foco de los segmentados aparece solo al navegar con teclado: un click (que enfoca el radio) no lo muestra
   document.addEventListener('pointerdown', function () { document.documentElement.classList.add('con-puntero'); }, true);
-  document.addEventListener('keydown', function () { document.documentElement.classList.remove('con-puntero'); }, true);
+  var TECLAS_NAV = ['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Enter', ' ', 'Escape'];
+  document.addEventListener('keydown', function (ev) {
+    if (TECLAS_NAV.indexOf(ev.key) >= 0) document.documentElement.classList.remove('con-puntero');
+  }, true);
 
   // Metodología: desplegable cerrado; con #metodologia en la URL (o un link a esa ancla) se abre y baja hasta ahí
   function abrirMetodologia() {

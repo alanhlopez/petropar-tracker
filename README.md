@@ -106,6 +106,28 @@ Reglas que no se negocian (ver CLAUDE.md): nunca inventar ni completar precios (
 `a_confirmar`), no reescribir filas existentes salvo corrección aprobada y registrada, y
 `data/raw/` no se edita.
 
+## IPC (vista "Gs constantes"): carga manual
+
+El IPC oficial de Paraguay lo publica el Banco Central del Paraguay (BCP), no el INE. El sitio del BCP no
+permite descargas automáticas, así que `data/ipc.csv` se carga a mano una vez por mes:
+
+1. Bajar el "Anexo Estadístico del Informe Económico" del BCP (https://www.bcp.gov.py, sección Estadísticas)
+   y guardarlo en `data/` (no se commitea: pesa ~9 MB y `.gitignore` lo excluye).
+2. Correr `python -m etl.importar_ipc data/Anexo_Estadístico_del_Informe_Económico_DD_MM_AAAA.xlsx --descargado AAAA-MM-DD`.
+   Lee el Cuadro 15 (IPC del Área Metropolitana de Asunción, serie empalmada, base dic-2017 = 100), columna
+   "Índice general", desde enero de 2009; valida título, base y que no falten meses, y reescribe `data/ipc.csv`
+   (en la columna `fuente` queda el nombre del archivo).
+3. Correr `python -m etl.build_site_data` y `pytest -q`.
+
+Mientras `data/ipc.csv` esté vacío, la vista "Gs constantes" aparece desactivada. El mes base de la
+deflactación es el último cargado.
+
+## Tipo de cambio (vista "US$ por litro")
+
+`etl/fetch_tipo_cambio.py` baja la cotización referencial del dólar del BCP (planilla anual, un valor por día
+hábil) a `data/tipo_cambio.csv`. Corre todos los días dentro de `oil.yml`. Cada precio se convierte con la
+cotización de su fecha de vigencia o, si ese día no hubo, la del último día hábil anterior.
+
 ## Publicación (Vercel)
 
 El sitio es estático y no tiene paso de build: Vercel solo sirve la carpeta `site/`.

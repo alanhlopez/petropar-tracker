@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from etl.conversiones import ipc_json, tipo_cambio, usd_por_litro
 from etl.io_csv import DATA, RAIZ, leer_csv
 
 ASUNCION = ZoneInfo("America/Asuncion")
@@ -151,7 +152,7 @@ def tarjetas_json(productos: list[dict], series: dict[str, list[dict]], hoy: dat
     return tarjetas
 
 
-def precios_json(precios: list[dict], ids: set[str]) -> dict[str, list[dict]]:
+def precios_json(precios: list[dict], ids: set[str], tc: list | None = None) -> dict[str, list[dict]]:
     series: dict[str, list[dict]] = {pid: [] for pid in sorted(ids)}
     for f in sorted(precios, key=lambda f: (f["product_id"], f["fecha_vigencia"])):
         if f["product_id"] not in ids:
@@ -167,6 +168,9 @@ def precios_json(precios: list[dict], ids: set[str]) -> dict[str, list[dict]]:
             "fuente": f["fuente"],
             "urls": [u.strip() for u in f["fuente_url"].split(" | ") if u.strip()],
             "nota": f["nota"],
+            # US$ por unidad del producto (litro o kg) con la cotización del BCP de la fecha de vigencia (o la última anterior)
+            **({"usd": u["usd"], "tc": u["tc"], "tc_fecha": u["tc_fecha"]}
+               if (u := usd_por_litro(int(f["precio_gs"]), f["fecha_vigencia"], tc or [])) else {}),
         })
     return series
 
@@ -210,7 +214,7 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
     petroleo = leer_csv(data / "petroleo.csv") if (data / "petroleo.csv").exists() else []
     ids = {p["product_id"] for p in productos}
     series_oil = petroleo_json(petroleo)
-    series = precios_json(precios, ids)
+    series = precios_json(precios, ids, tipo_cambio(data))
     extra = leer_csv(data / "huecos.csv") if (data / "huecos.csv").exists() else []
     huecos = huecos_por_producto(productos, series, extra)
     ahora = ahora or datetime.now(timezone.utc)
@@ -230,6 +234,7 @@ def construir(data: Path = DATA, ahora: datetime | None = None) -> dict:
         "presidentes": [{"nombre": p["nombre"], "inicio": p["inicio"], "fin": p["fin"] or None}
                         for p in leer_csv(data / "presidentes.csv")],
         "eventos": eventos_json(leer_csv(data / "eventos.csv")),
+        "ipc": ipc_json(data),
     }
 
 

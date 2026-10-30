@@ -97,7 +97,14 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - Leyenda inferior solo con la clave de símbolos (punto no firme, borde de hueco, hito, promo, precio máximo/sugerido, sombreado presidencial); productos y petróleo se identifican por chips y etiquetas finales (en móvil, bloque debajo del gráfico).
 - Sombreado por presidente (5 mandatos desde Lugo), líneas verticales de eventos (pandemia) y marcas de promociones (`tipo = promo`, solo `mostrar = true`; con `fecha_fin` como franja), distinguibles de los hitos.
 - GLP (kg y litro) NO va en el eje de los combustibles líquidos: otro producto, otra unidad y otra escala. Va en un gráfico chico aparte o en una pestaña.
-- Selector de vista: (a) doble eje Gs / US$ por galón, (b) índice base 100.
+- Selector de vista: (a) doble eje Gs / US$ por galón, (b) índice base 100, (c) Gs constantes (IPC del BCP,
+  base = último mes cargado; el precio vigente de cada mes × IPC(base)/IPC(mes); petróleo en el eje derecho como en
+  doble eje), (d) US$ por litro (tipo de cambio de referencia del BCP en la fecha de vigencia, o el último día hábil
+  anterior; el petróleo va en el mismo eje, en US$ por litro). Etiquetas finales y variación del período en la
+  unidad de la vista activa. Datos: `data/tipo_cambio.csv` (automático, `etl/fetch_tipo_cambio.py`) y
+  `data/ipc.csv` (carga manual, ver README; sin IPC la vista "Gs constantes" queda desactivada).
+- Variación del período: si el primer dato de un producto cae dentro de los primeros 31 días del rango, cuenta
+  como inicio; si cae después, la variación va desde ese dato con la aclaración "desde mmm-aaaa".
 - Navegación temporal (`site/rango.js`, lógica pura probada con node en `tests/test_rango_js.py`):
   - Botones 1M · 6M · YTD (desde el 1/1) · 1A · 5A · 10A · Todo (por defecto). Otros rangos (p. ej. 3 años) se
     eligen con el navegador o con los campos de fecha, sin agregar botones.
@@ -146,7 +153,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
 - README con cómo correr local, secrets necesarios y cómo aprobar un PR de precios.
 
 ## v2
-- Fuentes: tipo de cambio PYG/USD (BCP, diario) e IPC (INE, mensual).
+- Fuentes: tipo de cambio PYG/USD (BCP, diario) e IPC (BCP, mensual; carga manual).
 - Vistas del sitio: (c) Gs constantes (IPC), (d) US$ por litro.
 
 ## v2: emblemas privados (CombusPy)

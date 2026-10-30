@@ -15,3 +15,6 @@ artefactos_scraper/
 *secret*
 *credentials*
 .claude/settings.local.json
+
+# Anexo Estadístico del BCP (fuente del IPC): se baja a mano, ver README
+data/*.xlsx

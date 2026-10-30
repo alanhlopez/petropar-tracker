@@ -31,7 +31,14 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # tipo de cambio de referencia del BCP (vista US$ por litro); si el BCP falla, sigue con el petróleo
+      - name: Bajar tipo de cambio del BCP
+        run: python -m etl.fetch_tipo_cambio || echo "::warning::No se pudo bajar el tipo de cambio del BCP."
+
+      # si la EIA falla, igual se commitea el tipo de cambio y el job falla al final (aviso en Actions)
       - name: Bajar Brent, WTI y ULSD
+        id: eia
+        continue-on-error: true
         env:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
         run: python -m etl.fetch_oil
@@ -39,16 +46,16 @@ jobs:
       - name: Commit si hay datos nuevos
         id: commit
         run: |
-          git add -N data/petroleo.csv
-          if git diff --quiet -- data/petroleo.csv; then
-            echo "Sin datos nuevos de la EIA."
+          git add -N data/petroleo.csv data/tipo_cambio.csv
+          if git diff --quiet -- data/petroleo.csv data/tipo_cambio.csv; then
+            echo "Sin datos nuevos de la EIA ni del BCP."
             exit 0
           fi
           python -m etl.build_site_data
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/petroleo.csv site/data.json
-          git commit -m "Petróleo: datos EIA al $(date -u +%F)"
+          git add data/petroleo.csv data/tipo_cambio.csv site/data.json
+          git commit -m "Petróleo y tipo de cambio: datos al $(date -u +%F)"
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push origin "HEAD:$GITHUB_REF_NAME"
           echo "pushed=true" >> "$GITHUB_OUTPUT"
@@ -58,3 +65,10 @@ jobs:
       - name: Avisar a Vercel (Deploy Hook)
         if: steps.commit.outputs.pushed == 'true' && env.VERCEL_DEPLOY_HOOK != '' && github.ref_name == 'main'
         run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK" > /dev/null
+
+      # al final, para no saltear el commit del tipo de cambio ni el Deploy Hook
+      - name: Falló la descarga de la EIA
+        if: steps.eia.outcome == 'failure'
+        run: |
+          echo "::error::No se pudieron bajar los datos de la EIA (ver el paso 'Bajar Brent, WTI y ULSD')."
+          exit 1
