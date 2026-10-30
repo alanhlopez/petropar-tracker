@@ -1,5 +1,7 @@
 # Frescura: si scrape.yml no tuvo una corrida exitosa en 24 h, issue `scraper-roto`; si el data.json
 # publicado (variable SITIO_URL) tiene más de 48 h de atraso respecto de main, issue `deploy-atrasado`.
+# Desde el día 10 de cada mes, si data/ipc.csv no tiene el mes anterior, issue `ipc-atrasado` que menciona al
+# dueño del repo (GitHub se lo manda por correo); se cierra solo cuando se carga el IPC.
 name: frescura
 
 on:
@@ -30,3 +32,6 @@ jobs:
         env:
           SITIO_URL: ${{ vars.SITIO_URL || 'https://combuspy-tracker.vercel.app' }}
         run: python -m etl.avisos frescura --workflow scrape.yml --run-url "$RUN_URL" --sitio-url "$SITIO_URL"
+
+      - name: Recordatorio del IPC (carga manual)
+        run: python -m etl.avisos ipc --run-url "$RUN_URL" --avisar-a "${{ github.repository_owner }}"
