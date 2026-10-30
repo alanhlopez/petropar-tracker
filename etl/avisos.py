@@ -5,6 +5,7 @@ Etiquetas (ver SPEC.md, Automatización):
   precio-nuevo  hubo cambio de precio, con link al PR
   revisar       se disparó alguna regla de plausibilidad
   deploy-atrasado  el data.json publicado tiene más de 48 h de atraso respecto de main
+  ipc-atrasado  data/ipc.csv no tiene el IPC del mes anterior (carga manual: recordatorio por correo)
 
 Un issue abierto por etiqueta: si ya hay uno se comenta en vez de abrir otro.
 Cada aviso lleva una marca <!-- clave: ... --> (clave_cambio / clave_alertas del
@@ -18,6 +19,7 @@ Subcomandos:
             --sitio-url, si el sitio publicado quedó atrasado respecto de main
   pr        imprime el cuerpo del PR de precios (markdown) a partir del resumen
   etiquetas crea o actualiza las etiquetas (antes de abrir el PR con ellas)
+  ipc       desde el día DIA_IPC de cada mes, avisa si data/ipc.csv no tiene el mes anterior; lo cierra al cargarse
 """
 import argparse
 import json
@@ -33,10 +35,16 @@ ETIQUETAS = {
     "precio-nuevo": ("0e8a16", "Petropar cambió precios: hay un PR para aprobar"),
     "revisar": ("fbca04", "Se disparó una regla de plausibilidad"),
     "deploy-atrasado": ("5319e7", "El sitio publicado no refleja main: Vercel dejó de desplegar"),
+    "ipc-atrasado": ("1d76db", "Falta cargar el IPC del mes anterior (carga manual)"),
 }
 HORAS_FRESCURA = 24
 HORAS_DEPLOY = 48
 DATA_JSON = Path(__file__).resolve().parent.parent / "site" / "data.json"
+IPC_CSV = Path(__file__).resolve().parent.parent / "data" / "ipc.csv"
+# el BCP publica el IPC de un mes en los primeros días hábiles del siguiente: desde el día 10 se espera que esté
+DIA_IPC = 10
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre"]
 
 
 @dataclass
@@ -142,6 +150,37 @@ def aviso_deploy(publicado: dict | None, en_main: dict, url: str, run_url: str,
     return Aviso("deploy-atrasado", "Sitio publicado atrasado", f"{cuerpo}\n\n[Chequeo]({run_url})", clave)
 
 
+def mes_anterior(hoy) -> str:
+    return f"{hoy.year - (hoy.month == 1)}-{(hoy.month - 2) % 12 + 1:02d}"
+
+
+def ultimo_mes_ipc(ruta: Path = IPC_CSV) -> str | None:
+    if not ruta.exists():
+        return None
+    meses = [linea.split(",", 1)[0] for linea in ruta.read_text(encoding="utf-8").splitlines()[1:] if linea.strip()]
+    return max(meses) if meses else None
+
+
+def aviso_ipc(ultimo: str | None, hoy, run_url: str, avisar_a: str = "") -> Aviso | None:
+    """None si el IPC está al día (o todavía no es el día DIA_IPC del mes)."""
+    esperado = mes_anterior(hoy)
+    if hoy.day < DIA_IPC or (ultimo and ultimo >= esperado):
+        return None
+    nombre = f"{MESES[int(esperado[5:]) - 1]} de {esperado[:4]}"
+    menciona = f"@{avisar_a} " if avisar_a else ""
+    cuerpo = (f"{menciona}Falta cargar el IPC de **{nombre}**: el último mes en `data/ipc.csv` es "
+              f"{ultimo or 'ninguno'}. Mientras tanto, la vista \"Gs constantes\" muestra sin deflactar los meses "
+              "posteriores.\n\n"
+              "Pasos (ver README, \"IPC: carga manual\"):\n"
+              "1. Bajar el \"Anexo Estadístico del Informe Económico\" de https://www.bcp.gov.py y guardarlo en `data/`.\n"
+              "2. `python -m etl.importar_ipc data/Anexo_Estadístico_del_Informe_Económico_DD_MM_AAAA.xlsx "
+              "--descargado AAAA-MM-DD`\n"
+              "3. `python -m etl.build_site_data` y `pytest -q`; commit y push de `data/ipc.csv` y `site/data.json`.\n\n"
+              "Este issue se cierra solo cuando `data/ipc.csv` en main tenga ese mes.\n\n"
+              f"[Chequeo]({run_url})")
+    return Aviso("ipc-atrasado", f"Cargar el IPC de {nombre}", cuerpo, f"ipc:{esperado}")
+
+
 def leer_publicado(url: str) -> dict | None:
     try:
         with urllib.request.urlopen(f"{url.rstrip('/')}/data.json", timeout=30) as r:
@@ -226,6 +265,10 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
     r.add_argument("--resumen", type=Path, default=Path("resumen_scraper.json"))
     r.add_argument("--run-url", required=True)
     sub.add_parser("etiquetas")
+    i = sub.add_parser("ipc")
+    i.add_argument("--run-url", required=True)
+    i.add_argument("--avisar-a", default="", help="usuario de GitHub a mencionar (le llega por correo)")
+    i.add_argument("--hoy", default="", help="AAAA-MM-DD (para pruebas; por defecto, hoy en UTC)")
     args = p.parse_args(argv)
 
     if args.comando == "pr":
@@ -234,6 +277,16 @@ def main(argv: list[str] | None = None, gh=gh) -> int:
 
     asegurar_etiquetas(gh)
     if args.comando == "etiquetas":
+        return 0
+    if args.comando == "ipc":
+        ultimo = ultimo_mes_ipc(IPC_CSV)
+        hoy = datetime.fromisoformat(args.hoy).date() if args.hoy else datetime.now(timezone.utc).date()
+        aviso = aviso_ipc(ultimo, hoy, args.run_url, args.avisar_a)
+        if aviso:
+            print(f"{aviso.etiqueta}: {avisar(aviso, gh)}")
+        elif ultimo and ultimo >= mes_anterior(hoy) and \
+                cerrar("ipc-atrasado", f"IPC cargado hasta {ultimo}: {args.run_url}", gh):
+            print("ipc-atrasado: cerrado")
         return 0
     if args.comando == "scraper":
         resumen = leer_resumen(args.resumen)

@@ -119,6 +119,9 @@ permite descargas automáticas, así que `data/ipc.csv` se carga a mano una vez 
    (en la columna `fuente` queda el nombre del archivo).
 3. Correr `python -m etl.build_site_data` y `pytest -q`.
 
+**Recordatorio:** desde el día 10 de cada mes, si falta el IPC del mes anterior, `frescura.yml` abre un issue
+`ipc-atrasado` que te menciona (GitHub te lo manda por correo) con estos pasos. Se cierra solo al cargarlo.
+
 Mientras `data/ipc.csv` esté vacío, la vista "Gs constantes" aparece desactivada. El mes base de la
 deflactación es el último cargado.
 

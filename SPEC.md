@@ -80,6 +80,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   - `precio-nuevo`: hubo cambio de precio, con link al PR.
   - `revisar`: se disparó alguna regla de plausibilidad (la misma etiqueta va en el PR si lo hay).
   - `deploy-atrasado`: el sitio publicado no refleja main desde hace más de 48 h.
+  - `ipc-atrasado`: desde el día 10 de cada mes, `data/ipc.csv` no tiene el IPC del mes anterior (carga manual). El issue menciona al dueño del repo, así le llega por correo, y se cierra solo al cargarse ese mes.
   - El HTML capturado se adjunta como artifact del workflow y el issue lleva el link a la corrida.
   - Un issue abierto por etiqueta: si ya hay uno, se comenta en vez de abrir otro.
 

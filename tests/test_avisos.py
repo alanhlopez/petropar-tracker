@@ -226,3 +226,36 @@ def test_frescura_con_sitio_abre_y_cierra_deploy_atrasado(monkeypatch):
     monkeypatch.setattr(av, "leer_publicado", lambda url: en_main)
     av.main(["frescura", "--run-url", RUN, "--sitio-url", "https://x.vercel.app"], gh=gh)
     assert gh.issues[0]["state"] == "closed"
+
+
+# --- recordatorio del IPC (carga manual) -----------------------------------------
+
+def test_ipc_al_dia_o_antes_del_dia_10_no_avisa():
+    from datetime import date
+    assert av.aviso_ipc("2026-09", date(2026, 10, 30), RUN) is None      # septiembre cargado en octubre
+    assert av.aviso_ipc("2026-09", date(2026, 11, 9), RUN) is None       # todavía no es el día 10
+    assert av.mes_anterior(date(2027, 1, 15)) == "2026-12"
+
+
+def test_ipc_atrasado_avisa_mencionando_al_dueno():
+    from datetime import date
+    a = av.aviso_ipc("2026-09", date(2026, 11, 10), RUN, "alanhlopez")
+    assert a.etiqueta == "ipc-atrasado" and a.titulo == "Cargar el IPC de octubre de 2026"
+    assert a.cuerpo.startswith("@alanhlopez ") and "importar_ipc" in a.cuerpo and a.clave == "ipc:2026-10"
+
+
+def test_ipc_abre_un_solo_issue_por_mes_y_se_cierra_al_cargar(monkeypatch, tmp_path):
+    from datetime import date
+    gh = GH()
+    viejo = tmp_path / "viejo.csv"
+    viejo.write_text("mes,ipc,fuente,fuente_url,descargado_el\n2026-09,141.6,BCP,,2026-10-29\n", encoding="utf-8")
+    monkeypatch.setattr(av, "IPC_CSV", viejo)
+    for _ in range(3):   # frescura corre cada 3 h: un solo issue, sin comentarios repetidos
+        av.main(["ipc", "--run-url", RUN, "--hoy", "2026-11-12"], gh=gh)
+    assert [i["label"] for i in gh.issues] == ["ipc-atrasado"] and gh.issues[0]["comments"] == []
+    ruta = tmp_path / "ipc.csv"
+    ruta.write_text("mes,ipc,fuente,fuente_url,descargado_el\n2026-10,142.0,BCP,,2026-11-12\n", encoding="utf-8")
+    monkeypatch.setattr(av, "IPC_CSV", ruta)
+    assert av.ultimo_mes_ipc(ruta) == "2026-10"
+    av.main(["ipc", "--run-url", RUN, "--hoy", "2026-11-20"], gh=gh)
+    assert gh.issues[0]["state"] == "closed"
