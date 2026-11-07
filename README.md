@@ -40,6 +40,20 @@ Sin `--sin-escribir`, el scraper agrega filas a `data/precios_petropar.csv` (nun
 existentes) y guarda la captura en `data/capturas/`. El resumen de cada corrida queda en
 `resumen_scraper.json`.
 
+### Si GitHub Actions no llega a Petropar
+
+Desde el 05/11/2026 los runners de GitHub reciben `ConnectTimeout` de petropar.gov.py (desde una
+conexión en Paraguay la página responde). Mientras dure, correr el scraper a mano:
+
+```sh
+scripts/scrape_local.sh --prueba   # qué cambiaría, sin escribir ni publicar nada
+scripts/scrape_local.sh            # igual que scrape.yml: PR en precios/<clave> si hay cambio + avisos
+```
+
+Trabaja sobre una copia temporal de `origin/main` (no toca la rama actual) y nunca hace push a main.
+`frescura.yml` solo cuenta corridas de `scrape.yml`, así que el issue `scraper-roto` puede reabrirse
+aunque las corridas locales anden.
+
 ## Automatización (GitHub Actions)
 
 | Workflow | Cuándo | Qué hace |
