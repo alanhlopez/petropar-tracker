@@ -186,6 +186,20 @@ def test_capturas_wayback_congeladas():
         assert hashlib.sha256((WAYBACK / nombre).read_bytes()).hexdigest() == sha, nombre
 
 
+AIP_108910 = DATA / "raw" / "aip_108910"
+
+
+def test_respuesta_aip_108910_congelada():
+    """Respuesta del MIC a la AIP N° 108910 (planilla de precios fijados 1960–2018 y decretos de liberación): solo lectura."""
+    manifiesto = (AIP_108910 / "SHA256SUMS").read_bytes()
+    assert hashlib.sha256(manifiesto).hexdigest() == "0d426de9cf2d0732ff57bbdb3ab1c3077ead380848e72eb24078cf44f7d2ded9"
+    esperado = dict(reversed(linea.split(maxsplit=1)) for linea in manifiesto.decode().splitlines())
+    presentes = {p.name for p in AIP_108910.iterdir() if p.name != "SHA256SUMS"}
+    assert presentes == set(esperado), "archivos agregados o borrados en data/raw/aip_108910"
+    for nombre, sha in esperado.items():
+        assert hashlib.sha256((AIP_108910 / nombre).read_bytes()).hexdigest() == sha, nombre
+
+
 def test_correcciones_de_filas_capturadas(precios):
     """Filas del scraper corregidas con aprobación: la fila coincide con lo registrado y nunca cambia el precio."""
     correcciones = leer_csv(DATA / "correcciones_capturas.csv")
