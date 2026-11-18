@@ -4519,6 +4519,10 @@ fecha,serie,valor_usd,unidad
 2026-11-09,brent,91.03,usd_bbl
 2026-11-10,brent,90.16,usd_bbl
 2026-11-11,brent,92.14,usd_bbl
+2026-11-12,brent,95.42,usd_bbl
+2026-11-13,brent,95.17,usd_bbl
+2026-11-16,brent,92.90,usd_bbl
+2026-11-17,brent,92.94,usd_bbl
 2009-01-02,brent,1.0224,usd_gal
 2009-01-05,brent,1.0914,usd_gal
 2009-01-06,brent,1.1640,usd_gal
@@ -9039,6 +9043,10 @@ fecha,serie,valor_usd,unidad
 2026-11-09,brent,2.1674,usd_gal
 2026-11-10,brent,2.1467,usd_gal
 2026-11-11,brent,2.1938,usd_gal
+2026-11-12,brent,2.2719,usd_gal
+2026-11-13,brent,2.2660,usd_gal
+2026-11-16,brent,2.2119,usd_gal
+2026-11-17,brent,2.2129,usd_gal
 2009-01-02,ulsd,1.4470,usd_gal
 2009-01-05,ulsd,1.5160,usd_gal
 2009-01-06,ulsd,1.6030,usd_gal
@@ -13529,6 +13537,10 @@ fecha,serie,valor_usd,unidad
 2026-11-09,ulsd,4.1510,usd_gal
 2026-11-10,ulsd,4.1060,usd_gal
 2026-11-11,ulsd,4.1060,usd_gal
+2026-11-12,ulsd,4.2230,usd_gal
+2026-11-13,ulsd,4.2330,usd_gal
+2026-11-16,ulsd,3.9570,usd_gal
+2026-11-17,ulsd,3.9430,usd_gal
 2009-01-02,wti,46.17,usd_bbl
 2009-01-05,wti,48.61,usd_bbl
 2009-01-06,wti,48.56,usd_bbl
@@ -18017,6 +18029,10 @@ fecha,serie,valor_usd,unidad
 2026-11-09,wti,90.40,usd_bbl
 2026-11-10,wti,89.62,usd_bbl
 2026-11-11,wti,89.62,usd_bbl
+2026-11-12,wti,92.30,usd_bbl
+2026-11-13,wti,91.96,usd_bbl
+2026-11-16,wti,89.24,usd_bbl
+2026-11-17,wti,89.53,usd_bbl
 2009-01-02,wti,1.0993,usd_gal
 2009-01-05,wti,1.1574,usd_gal
 2009-01-06,wti,1.1562,usd_gal
@@ -22505,3 +22521,7 @@ fecha,serie,valor_usd,unidad
 2026-11-09,wti,2.1524,usd_gal
 2026-11-10,wti,2.1338,usd_gal
 2026-11-11,wti,2.1338,usd_gal
+2026-11-12,wti,2.1976,usd_gal
+2026-11-13,wti,2.1895,usd_gal
+2026-11-16,wti,2.1248,usd_gal
+2026-11-17,wti,2.1317,usd_gal
