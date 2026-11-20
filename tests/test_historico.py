@@ -200,6 +200,20 @@ def test_respuesta_aip_108910_congelada():
         assert hashlib.sha256((AIP_108910 / nombre).read_bytes()).hexdigest() == sha, nombre
 
 
+AIP_108908 = DATA / "raw" / "aip_108908"
+
+
+def test_respuesta_aip_108908_congelada():
+    """Respuesta de Petropar a la AIP N° 108908 (histórico 2012–2026, escaneado): solo lectura."""
+    manifiesto = (AIP_108908 / "SHA256SUMS").read_bytes()
+    assert hashlib.sha256(manifiesto).hexdigest() == "efcf70d7d19a1f8295651fccae3a3655d7899393ebeb2c77fe30abc4197e99f7"
+    esperado = dict(reversed(linea.split(maxsplit=1)) for linea in manifiesto.decode().splitlines())
+    presentes = {p.name for p in AIP_108908.iterdir() if p.name != "SHA256SUMS"}
+    assert presentes == set(esperado), "archivos agregados o borrados en data/raw/aip_108908"
+    for nombre, sha in esperado.items():
+        assert hashlib.sha256((AIP_108908 / nombre).read_bytes()).hexdigest() == sha, nombre
+
+
 def test_correcciones_de_filas_capturadas(precios):
     """Filas del scraper corregidas con aprobación: la fila coincide con lo registrado y nunca cambia el precio."""
     correcciones = leer_csv(DATA / "correcciones_capturas.csv")
