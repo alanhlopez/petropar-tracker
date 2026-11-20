@@ -1,0 +1,22 @@
+fecha_aip_108908,producto,valor_aip_108908,fecha_serie,valor_serie,fuente_serie,tipo,nota
+2012-04-18,diesel_pora,5860,2012-01-19,5830,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",precio,contra AIP 90150: la serie tiene 5.830 desde el 19/01/2012; el MIC (AIP 108910) da 5.860 desde el 18/01/2012
+2012-04-24,diesel_mbarete,6400,2012-03-08,5400,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",precio,"contra AIP 90150: la serie tiene 5.400 desde el 08/03/2012 hasta el 18/01/2013; el documento, 6.400 en todo ese tramo"
+2012-04-18,nafta_kape88,5750,2012-05-03,5750,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: el 5.750 entra en la serie el 03/05/2012
+2012-04-18,nafta_aratiri97,7340,2012-05-03,7340,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: el 7.340 entra en la serie el 03/05/2012 (antes 6.290 desde el 18/04/2012)
+2014-03-16,diesel_pora,5290,2013-03-14,5290,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: la serie tiene 5.290 desde el 14/03/2013; probable error de año en el documento
+2014-03-16,diesel_mbarete,6000,2013-03-14,6000,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: la serie tiene 6.000 desde el 14/03/2013; probable error de año en el documento
+2014-07-09,diesel_mbarete,6300,2014-04-01,6300,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: la serie tiene 6.300 desde el 01/04/2014
+2014-03-16,nafta_kape88,5250,2013-01-18,5350,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",precio,contra AIP 90150: la serie no tiene 5.250 (pasa de 5.350 a 5.550 el 09/07/2013)
+2014-07-09,nafta_kape88,5550,2013-07-09,5550,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: la serie tiene 5.550 desde el 09/07/2013; probable error de año en el documento
+2014-03-16,nafta_aratiri97,7040,2012-06-14,7240,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",precio,contra AIP 90150: la serie no tiene 7.040 (pasa de 7.240 a 7.340 el 09/07/2013)
+2014-07-09,nafta_aratiri97,7340,2013-07-09,7340,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 1",fecha,contra AIP 90150: la serie tiene 7.340 desde el 09/07/2013; probable error de año en el documento
+2024-02,diesel_pora,7740,2024-03-13,7740,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 2",fecha,contra AIP 90150: el documento da la suba en febrero sin día; la serie la tiene el 13/03/2024
+2024-02,nafta_kape88,5900,2023-12-22,5650,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 2",precio,contra AIP 90150: suba de febrero sin día que la serie no tiene (pasa directo al precio del 13/03/2024)
+2024-02,nafta_oikoite93,6400,2023-12-22,6150,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 2",precio,contra AIP 90150: suba de febrero sin día que la serie no tiene (pasa directo al precio del 13/03/2024)
+2024-02,nafta_aratiri97,7750,2023-12-22,7500,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 2",precio,contra AIP 90150: suba de febrero sin día que la serie no tiene (pasa directo al precio del 13/03/2024)
+2024-07-20 a 2026-11,nafta_ecoflex85,7730,2026-10-29,7330,"Petropar, precios vigentes (petropar.gov.py)",precio,contra la web de Petropar: la web publica 7.330 'desde 13/08/2024'; el documento da 7.730 sin cambios desde el 20/07/2024 (como el AIP 90150)
+2025-02-20,glp_litro,4071,2025-02-28,4042,Petropar web (Wayback 14/03/2025) / La Nación 12-05-2025,precio,contra la web de Petropar: Wayback 14/03/2025 muestra 4.042
+2025-05-22,glp_litro,4269,2025-05-23,4240,"Petropar, precios vigentes (petropar.gov.py)",precio,contra la web de Petropar: la web publica 4.240 desde el 23/05/2025
+2018-12-27,glp_litro,3025,2018-12-29,3025,ABC 27-12-2018,fecha,contra prensa: la serie tiene 29/12/2018 (a_confirmar) según ABC
+2022-09-16,glp_litro,4250,2022-09-16,4250,ABC 14-09-2022 / Última Hora 14-09-2022,confirma,"contra prensa: el documento confirma precio, fecha y unidad (litro) de la fila marcada a_confirmar por unidad en duda"
+2023-06-24,nafta_oikoite93,7400,2023-07-24,7400,"Petropar, Respuesta AIP Solicitud N° 90150 (17-03-2025), pág. 2",error_documento,el documento dice '24 Junio' después de '30 Junio'; la serie tiene 7.400 desde el 24/07/2023 como las demás naftas

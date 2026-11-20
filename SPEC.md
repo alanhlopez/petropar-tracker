@@ -42,6 +42,7 @@ Fuente oficial primero: donde hay documento oficial, reemplaza a prensa y planil
   - Presidentes: Lugo (2008-08-15), Franco (2012-06-22), Cartes (2013-08-15), Abdo (2018-08-15), Peña (2023-08-15).
 - `data/eventos.csv`: fecha, fecha_fin, tipo (hito|promo), etiqueta, mostrar (true|false), fuente, fuente_url, nota (ej. pandemia OMS 2020-03-11 / 2023-05-05). Las bajas temporales o promociones que no figuran en el documento oficial van acá como `promo`, no a la serie principal. `mostrar=false` para promos de un día en pocas estaciones (2016–2017): quedan documentadas pero no se dibujan.
 - `data/reports/conflictos_fuentes.csv`: fecha, producto, valor_prensa, valor_oficial, fuente_prensa, nota — filas de prensa/planilla 2009–2024 cuyo precio no coincide con el oficial vigente ese día.
+- `data/reports/conflictos_aip_108908.csv`: fecha_aip_108908, producto, valor_aip_108908, fecha_serie, valor_serie, fuente_serie, tipo (precio|fecha|confirma|error_documento), nota — diferencias entre la respuesta AIP N° 108908 y la serie (contra el AIP 90150, la web de Petropar y la prensa). La serie no cambia por estas filas; se resuelven aparte y con aprobación.
 
 `etl/migrar_historico.py` (corrida única) arma `precios_petropar.csv` y el reporte desde `data/raw/`:
 2009–2024 sale del documento oficial; desde 2025 sale de `petropar_precios_v0.csv` sin perder estado ni fuente.

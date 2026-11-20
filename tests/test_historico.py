@@ -237,3 +237,13 @@ def test_correcciones_de_filas_capturadas(precios):
                   == (c["fecha_vigencia"], c["product_id"], c["captured_at"])]
         assert {k: fila[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")} == \
                {k: c[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")}
+
+
+def test_conflictos_aip_108908_citan_filas_reales(precios):
+    """Cada fila del reporte apunta a una fila existente de la serie con ese precio."""
+    en_serie = {(p["fecha_vigencia"], p["product_id"]): p["precio_gs"] for p in precios}
+    filas = leer_csv(DATA / "reports" / "conflictos_aip_108908.csv")
+    assert filas
+    for c in filas:
+        assert en_serie[(c["fecha_serie"], c["producto"])] == c["valor_serie"], c
+        assert c["tipo"] in {"precio", "fecha", "confirma", "error_documento"}, c
