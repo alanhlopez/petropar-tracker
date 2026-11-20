@@ -52,7 +52,7 @@ def test_precios_y_marcas(data):
     assert [p["fecha"] for p in pora] == sorted(p["fecha"] for p in pora)
     assert pora[-1]["fecha"] == "2099-01-01" and pora[-1]["firme"] is False
     # varias URLs separadas por " | " se convierten en lista
-    assert len(next(p for p in datos["precios"]["diesel_mbarete"] if p["fecha"] == "2026-01-28")["urls"]) == 2
+    assert len(next(p for p in datos["precios"]["diesel_mbarete"] if p["fecha"] == "2026-01-28")["urls"]) == 3
 
 
 def test_producto_sin_precios_sale_con_lista_vacia(data):

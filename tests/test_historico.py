@@ -140,7 +140,20 @@ def test_correccion_aprobada_2026_01_28(precios):
     }
     for f in filas.values():
         assert (f["estado"], f["fecha_estado"]) == ("verificado", "confirmada")
-        assert f["nota"] == "antes derivado de ABC 28-10-2026 con fecha placeholder 2026-02-01"
+        # la corrección del 20/11/2026 (AIP 108908) conserva la historia en la nota
+        assert f["nota"].endswith("antes derivado de ABC 28-10-2026 con fecha placeholder 2026-02-01")
+
+
+def test_aip_108908_fuente_de_2025_en_adelante(precios):
+    """Las filas de prensa de 2025–2026 citan primero el documento oficial (correcciones del 20/11/2026)."""
+    url = "https://informacionpublica.paraguay.gov.py/public/2026/1795107519_1_RespuestaalaSolicitudN108.908.pdf"
+    prensa = [p for p in precios if p["fecha_vigencia"] > CORTE_OFICIAL and not p["captured_at"]
+              and p["product_id"] not in ("glp_kg", "glp_litro")]
+    assert len(prensa) == 71
+    for p in prensa:
+        assert p["fuente"] == "Petropar, Respuesta AIP Solicitud N° 108908 (19-11-2026)", p
+        assert p["fuente_url"].split(" | ")[0] == url, p
+        assert p["nota"].startswith("también en prensa: "), p
 
 
 def test_anotaciones_pisan_nota_sin_tocar_precio(precios, oficiales_csv):
@@ -224,3 +237,13 @@ def test_correcciones_de_filas_capturadas(precios):
                   == (c["fecha_vigencia"], c["product_id"], c["captured_at"])]
         assert {k: fila[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")} == \
                {k: c[k] for k in ("precio_gs", "estado", "fecha_estado", "nota")}
+
+
+def test_conflictos_aip_108908_citan_filas_reales(precios):
+    """Cada fila del reporte apunta a una fila existente de la serie con ese precio."""
+    en_serie = {(p["fecha_vigencia"], p["product_id"]): p["precio_gs"] for p in precios}
+    filas = leer_csv(DATA / "reports" / "conflictos_aip_108908.csv")
+    assert filas
+    for c in filas:
+        assert en_serie[(c["fecha_serie"], c["producto"])] == c["valor_serie"], c
+        assert c["tipo"] in {"precio", "fecha", "confirma", "error_documento"}, c
