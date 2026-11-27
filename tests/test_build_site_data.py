@@ -259,7 +259,11 @@ def test_ningun_producto_por_confirmar_o_con_anterior_viejo_muestra_flecha():
 
 def test_huecos_cortan_y_no_se_cruzan(data):
     """huecos.csv: el precio no se arrastra por el período sin fuente ni en la variación anual."""
-    # la última fila real de glp_kg es del 23/05/2025; después, un hueco hasta una fila nueva
+    # se deja como última fila real de glp_kg la del 23/05/2025; después, un hueco hasta una fila nueva
+    csv = data / "precios_petropar.csv"
+    lineas = csv.read_text(encoding="utf-8").splitlines(keepends=True)
+    csv.write_text("".join(l for l in lineas if not (",glp_kg," in l and l[:10] > "2025-06-01")),
+                   encoding="utf-8")
     agregar_precio(data, "2026-09-01,glp_kg,9500,kg,venta_publico,verificado,confirmada,x,,,")
     (data / "huecos.csv").write_text("product_id,desde,hasta,nota\nglp_kg,2025-06-01,2026-09-01,prueba\n")
     datos = bs.construir(data, AHORA)
