@@ -483,3 +483,5 @@ fecha_vigencia,product_id,precio_gs,unidad,tipo_precio,estado,fecha_estado,fuent
 2026-11-13,nafta_aratiri97,8690,litro,venta_publico,verificado,confirmada,"Petropar, precios vigentes (petropar.gov.py)",https://www.petropar.gov.py/?page_id=4460,,2026-11-14T00:18:42+00:00
 2026-11-13,nafta_kape88,6690,litro,venta_publico,verificado,confirmada,"Petropar, precios vigentes (petropar.gov.py)",https://www.petropar.gov.py/?page_id=4460,,2026-11-14T00:18:42+00:00
 2026-11-13,nafta_oikoite93,7190,litro,venta_publico,verificado,confirmada,"Petropar, precios vigentes (petropar.gov.py)",https://www.petropar.gov.py/?page_id=4460,,2026-11-14T00:18:42+00:00
+2025-05-27,glp_kg,6971,kg,venta_publico,verificado,a_confirmar,"Petropar, precios vigentes (petropar.gov.py)",https://www.petropar.gov.py/?page_id=4460,vigencia publicada 2025-05-27 a más de 3 días de la captura (2026-11-27),2026-11-27T23:06:22+00:00
+2025-05-27,glp_litro,3904,litro,venta_publico,verificado,a_confirmar,"Petropar, precios vigentes (petropar.gov.py)",https://www.petropar.gov.py/?page_id=4460,vigencia publicada 2025-05-27 a más de 3 días de la captura (2026-11-27),2026-11-27T23:06:22+00:00
